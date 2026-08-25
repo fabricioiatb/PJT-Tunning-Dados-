@@ -1,4 +1,4 @@
-# PJT - Tunning de Dados
+# PJT - Tunning de Dados / Garagem Poliglota
 
 Projeto da disciplina **CCD410 — Performance e Tuning de Dados**, sobre **Polyglot Persistence**.
 
