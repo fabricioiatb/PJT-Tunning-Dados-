@@ -49,11 +49,27 @@ O [`frontend`](frontend) (React) consome as APIs dos três serviços — nunca a
 docker-compose up -d
 ```
 
-Isso sobe PostgreSQL (`localhost:5432`), MongoDB (`localhost:27017`) e Cassandra (`localhost:9042`).
+Isso sobe PostgreSQL (`localhost:5433`), MongoDB (`localhost:27017`) e Cassandra (`localhost:9042`).
 
 ### Serviços de backend e frontend
 
-> Em construção — cada serviço terá suas próprias instruções de instalação e execução assim que o código for adicionado (`npm install` + `npm run dev`, com as variáveis de `.env.example` copiadas para `.env`).
+> O Postgres usa a porta **5433** no host, para não conflitar com um PostgreSQL instalado localmente.
+
+Cada serviço roda em um terminal separado:
+
+```bash
+cd backend/clientes-service
+cp .env.example .env
+npm install
+npm run dev        # http://localhost:3001
+```
+
+| Serviço | Porta | Status |
+|---|---|---|
+| [`clientes-service`](backend/clientes-service) | 3001 | ✅ Pronto |
+| [`garagens-service`](backend/garagens-service) | 3002 | Em construção |
+| [`sessoes-service`](backend/sessoes-service) | 3003 | Em construção |
+| [`frontend`](frontend) | 5173 | Em construção |
 
 ## Estrutura do repositório
 
