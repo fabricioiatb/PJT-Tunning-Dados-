@@ -80,6 +80,13 @@ npm run dev        # http://localhost:3003
 npm run seed       # opcional: histórico de sessões para as consultas
 ```
 
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev        # http://localhost:5173
+```
+
 > O Cassandra leva cerca de 1 minuto para aceitar conexões. `docker compose ps` mostra `healthy` quando ele está pronto (o serviço também espera e tenta de novo sozinho).
 
 | Serviço | Porta | Status |
@@ -87,7 +94,7 @@ npm run seed       # opcional: histórico de sessões para as consultas
 | [`clientes-service`](backend/clientes-service) | 3001 | ✅ Pronto |
 | [`garagens-service`](backend/garagens-service) | 3002 | ✅ Pronto |
 | [`sessoes-service`](backend/sessoes-service) | 3003 | ✅ Pronto |
-| [`frontend`](frontend) | 5173 | Em construção |
+| [`frontend`](frontend) | 5173 | ✅ Pronto |
 
 ## Estrutura do repositório
 

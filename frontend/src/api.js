@@ -1,0 +1,85 @@
+// Cliente HTTP dos três serviços. O frontend nunca acessa banco: só as APIs.
+const URLS = {
+  clientes: import.meta.env.VITE_CLIENTES_API_URL || 'http://localhost:3001',
+  garagens: import.meta.env.VITE_GARAGENS_API_URL || 'http://localhost:3002',
+  sessoes: import.meta.env.VITE_SESSOES_API_URL || 'http://localhost:3003',
+};
+
+export class ApiError extends Error {
+  constructor(message, status, corpo) {
+    super(message);
+    this.status = status;
+    this.corpo = corpo;
+  }
+}
+
+async function req(servico, path, { method = 'GET', body } = {}) {
+  let resp;
+  try {
+    resp = await fetch(URLS[servico] + path, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new ApiError(`Serviço de ${servico} fora do ar (${URLS[servico]})`, 0);
+  }
+  if (resp.status === 204) return null;
+  const corpo = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const det = Array.isArray(corpo.detalhe) ? ` — ${corpo.detalhe.join('; ')}` : '';
+    throw new ApiError((corpo.erro || `Erro ${resp.status}`) + det, resp.status, corpo);
+  }
+  return corpo;
+}
+
+const qs = (obj) => {
+  const p = new URLSearchParams(Object.entries(obj).filter(([, v]) => v !== undefined && v !== '' && v !== null));
+  const s = p.toString();
+  return s ? `?${s}` : '';
+};
+
+export const api = {
+  saude: (servico) => req(servico, '/health'),
+
+  // Clientes (PostgreSQL)
+  clientes: (busca) => req('clientes', `/clientes${qs({ busca })}`),
+  cliente: (id) => req('clientes', `/clientes/${id}`),
+  criarCliente: (body) => req('clientes', '/clientes', { method: 'POST', body }),
+  atualizarCliente: (id, body) => req('clientes', `/clientes/${id}`, { method: 'PUT', body }),
+  removerCliente: (id) => req('clientes', `/clientes/${id}`, { method: 'DELETE' }),
+  criarVeiculo: (body) => req('clientes', '/veiculos', { method: 'POST', body }),
+  removerVeiculo: (id) => req('clientes', `/veiculos/${id}`, { method: 'DELETE' }),
+  criarPlano: (body) => req('clientes', '/planos', { method: 'POST', body }),
+  encerrarPlano: (id) => req('clientes', `/planos/${id}/encerrar`, { method: 'PATCH' }),
+
+  // Garagens (MongoDB)
+  garagens: (filtros = {}) => req('garagens', `/garagens${qs(filtros)}`),
+  garagem: (id) => req('garagens', `/garagens/${id}`),
+  criarGaragem: (body) => req('garagens', '/garagens', { method: 'POST', body }),
+  atualizarGaragem: (id, body) => req('garagens', `/garagens/${id}`, { method: 'PATCH', body }),
+  removerGaragem: (id) => req('garagens', `/garagens/${id}`, { method: 'DELETE' }),
+
+  // Sessões (Cassandra)
+  checkin: (body) => req('sessoes', '/sessoes/checkin', { method: 'POST', body }),
+  checkout: (body) => req('sessoes', '/sessoes/checkout', { method: 'POST', body }),
+  sessaoAberta: (placa) => req('sessoes', `/sessoes/abertas/${encodeURIComponent(placa)}`),
+  ocupacao: (garagemId) => req('sessoes', `/garagens/${garagemId}/ocupacao`),
+  sessoesGaragem: (garagemId, filtros = {}) => req('sessoes', `/garagens/${garagemId}/sessoes${qs(filtros)}`),
+  historicoVeiculo: (placa, limite = 50) =>
+    req('sessoes', `/veiculos/${encodeURIComponent(placa)}/sessoes${qs({ limite })}`),
+};
+
+// --- formatação ---
+export const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+export const dataHora = (d) =>
+  d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+export const duracao = (min) => {
+  if (min == null) return '—';
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
+  return h ? `${h}h ${String(m).padStart(2, '0')}min` : `${m}min`;
+};
+export const TIPOS = ['CARRO', 'MOTO', 'UTILITARIO'];
+export const NOME_TIPO = { CARRO: 'Carro', MOTO: 'Moto', UTILITARIO: 'Utilitário' };
