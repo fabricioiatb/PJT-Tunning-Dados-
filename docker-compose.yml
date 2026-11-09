@@ -27,10 +27,21 @@ services:
     restart: unless-stopped
     environment:
       CASSANDRA_CLUSTER_NAME: garagem-cluster
+      # Heap reduzido para rodar em notebook (o padrão usa 1/4 da RAM).
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 128M
     ports:
       - "9042:9042"
     volumes:
       - cassandra_data:/var/lib/cassandra
+    # O Cassandra leva ~1 min para aceitar conexões; "docker compose ps"
+    # mostra "healthy" quando o CQL já responde.
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'DESCRIBE KEYSPACES' > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
 
 volumes:
   postgres_data:

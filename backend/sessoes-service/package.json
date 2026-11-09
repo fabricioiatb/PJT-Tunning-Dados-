@@ -1,0 +1,22 @@
+{
+  "name": "sessoes-service",
+  "version": "1.0.0",
+  "description": "Serviço de Sessões — check-in/check-out (Cassandra)",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test",
+    "seed": "node src/seed.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cassandra-driver": "^4.7.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0"
+  }
+}
