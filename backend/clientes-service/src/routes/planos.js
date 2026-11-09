@@ -6,6 +6,26 @@ const { PLANO_VIGENTE } = require('../sql');
 
 const router = Router();
 
+// garagem_id aponta para um documento em OUTRO banco (MongoDB), então não dá
+// para usar FK. A integridade é verificada perguntando ao Serviço de Garagens.
+// Se GARAGENS_SERVICE_URL não estiver configurada, só o formato é validado.
+async function verificarGaragem(garagemId) {
+  const base = process.env.GARAGENS_SERVICE_URL;
+  if (!base) return;
+
+  let resp;
+  try {
+    resp = await fetch(`${base}/garagens/${garagemId}`, { signal: AbortSignal.timeout(3000) });
+  } catch {
+    throw new HttpError(503, 'Serviço de Garagens indisponível; não foi possível validar a garagem');
+  }
+  if (resp.status === 404) throw new HttpError(400, 'Garagem não encontrada');
+  if (!resp.ok) throw new HttpError(502, `Serviço de Garagens respondeu ${resp.status}`);
+
+  const garagem = await resp.json();
+  if (garagem.ativa === false) throw new HttpError(400, 'Garagem está inativa');
+}
+
 const SELECT_PLANO = `
   SELECT p.*, c.nome AS cliente_nome, (${PLANO_VIGENTE}) AS vigente
     FROM planos p
@@ -45,6 +65,7 @@ router.post('/', async (req, res) => {
   exigir(req.body, ['cliente_id', 'garagem_id', 'valor_mensal']);
   const { cliente_id, garagem_id, valor_mensal, data_inicio } = req.body;
   validarGaragemId(garagem_id);
+  await verificarGaragem(garagem_id);
 
   const { rows } = await pool.query(
     `INSERT INTO planos (cliente_id, garagem_id, valor_mensal, data_inicio)

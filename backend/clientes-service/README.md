@@ -26,7 +26,7 @@ clientes 1 ──< planos        (garagem_id = _id da garagem no MongoDB)
 ```
 
 - **Tipo do cliente é derivado**: `MENSALISTA` se tem plano vigente, senão `AVULSO`. Não há coluna `tipo`, para não ter dado duplicado que possa ficar inconsistente.
-- `garagem_id` não tem FK porque a garagem vive em outro banco (MongoDB). O formato (ObjectId) é validado na aplicação.
+- `garagem_id` não tem FK porque a garagem vive em outro banco (MongoDB). Ao criar um plano, o serviço consulta o **Serviço de Garagens** (`GARAGENS_SERVICE_URL`) para confirmar que a garagem existe e está ativa. Se o serviço estiver fora do ar, a resposta é `503`. Sem a variável configurada, só o formato do ObjectId é validado.
 
 ### Decisões de integridade e desempenho
 

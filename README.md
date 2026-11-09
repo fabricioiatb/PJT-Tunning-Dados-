@@ -64,10 +64,18 @@ npm install
 npm run dev        # http://localhost:3001
 ```
 
+```bash
+cd backend/garagens-service
+cp .env.example .env
+npm install
+npm run seed       # garagens de exemplo
+npm run dev        # http://localhost:3002
+```
+
 | Serviço | Porta | Status |
 |---|---|---|
 | [`clientes-service`](backend/clientes-service) | 3001 | ✅ Pronto |
-| [`garagens-service`](backend/garagens-service) | 3002 | Em construção |
+| [`garagens-service`](backend/garagens-service) | 3002 | ✅ Pronto |
 | [`sessoes-service`](backend/sessoes-service) | 3003 | Em construção |
 | [`frontend`](frontend) | 5173 | Em construção |
 
