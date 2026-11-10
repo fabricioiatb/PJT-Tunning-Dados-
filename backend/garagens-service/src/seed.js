@@ -17,9 +17,13 @@ const dados = [
     nome: 'Garagem Paulista',
     ativa: true,
     endereco: {
-      logradouro: 'Av. Paulista', numero: '1000', bairro: 'Bela Vista',
-      cidade: 'São Paulo', uf: 'SP', cep: '01310-100',
-      localizacao: { type: 'Point', coordinates: [-46.6544, -23.5650] },
+      logradouro: 'Av. Paulista',
+      numero: '1000',
+      bairro: 'Bela Vista',
+      cidade: 'São Paulo',
+      uf: 'SP',
+      cep: '01310-100',
+      localizacao: { type: 'Point', coordinates: [-46.6544, -23.565] },
     },
     vagas: [
       { tipo: 'CARRO', total: 120, cobertas: 120 },
@@ -38,26 +42,39 @@ const dados = [
     nome: 'Estacionamento Pinheiros',
     ativa: true,
     endereco: {
-      logradouro: 'Rua dos Pinheiros', numero: '450', bairro: 'Pinheiros',
-      cidade: 'São Paulo', uf: 'SP',
+      logradouro: 'Rua dos Pinheiros',
+      numero: '450',
+      bairro: 'Pinheiros',
+      cidade: 'São Paulo',
+      uf: 'SP',
       localizacao: { type: 'Point', coordinates: [-46.6823, -23.5662] },
     },
     vagas: [{ tipo: 'CARRO', total: 40 }],
-    tarifas: [{ tipo_veiculo: 'CARRO', tolerancia_minutos: 10, primeira_hora: 15, hora_adicional: 6, diaria_maxima: 50 }],
+    tarifas: [
+      { tipo_veiculo: 'CARRO', tolerancia_minutos: 10, primeira_hora: 15, hora_adicional: 6, diaria_maxima: 50 },
+    ],
     comodidades: ['lava-rapido'],
     horario_funcionamento: {
       seg_sex: { abre: '06:00', fecha: '23:00' },
       sab: { abre: '08:00', fecha: '20:00' },
       dom: null,
     },
-    lava_rapido: { servicos: [{ nome: 'Lavagem simples', preco: 40 }, { nome: 'Completa', preco: 90 }] },
+    lava_rapido: {
+      servicos: [
+        { nome: 'Lavagem simples', preco: 40 },
+        { nome: 'Completa', preco: 90 },
+      ],
+    },
   },
   {
     _id: new ObjectId('6720a0000000000000000003'),
     nome: 'Park Center Campinas',
     ativa: true,
     endereco: {
-      logradouro: 'Av. Norte-Sul', numero: '200', cidade: 'Campinas', uf: 'SP',
+      logradouro: 'Av. Norte-Sul',
+      numero: '200',
+      cidade: 'Campinas',
+      uf: 'SP',
       localizacao: { type: 'Point', coordinates: [-47.0608, -22.9056] },
     },
     vagas: [
@@ -80,8 +97,11 @@ const dados = [
     ativa: false,
     observacao: 'Em reforma até o fim do mês',
     endereco: {
-      logradouro: 'Rua da Assembleia', numero: '10', bairro: 'Centro',
-      cidade: 'Rio de Janeiro', uf: 'RJ',
+      logradouro: 'Rua da Assembleia',
+      numero: '10',
+      bairro: 'Centro',
+      cidade: 'Rio de Janeiro',
+      uf: 'RJ',
       localizacao: { type: 'Point', coordinates: [-43.1767, -22.9043] },
     },
     vagas: [{ tipo: 'CARRO', total: 60 }],
@@ -90,15 +110,28 @@ const dados = [
   },
 ].map((g) => ({ ...g, criado_em: agora, atualizado_em: agora }));
 
-(async () => {
-  await conectar();
+// (Re)insere as garagens de exemplo. Com somenteSeVazio, não faz nada se a
+// coleção já tiver documentos (usado na inicialização em ambiente novo).
+async function popular({ somenteSeVazio = false } = {}) {
+  if (somenteSeVazio && (await garagens().estimatedDocumentCount()) > 0) return 0;
   await garagens().deleteMany({ _id: { $in: dados.map((d) => d._id) } });
   const { insertedCount } = await garagens().insertMany(dados);
-  console.log(`${insertedCount} garagens inseridas:`);
-  for (const d of dados) console.log(`  ${d._id}  ${d.nome}${d.ativa ? '' : ' (inativa)'}`);
-  await client.close();
-})().catch(async (err) => {
-  console.error(err);
-  await client.close();
-  process.exit(1);
-});
+  console.log(`Seed: ${insertedCount} garagens de exemplo inseridas`);
+  return insertedCount;
+}
+
+module.exports = { popular };
+
+// Execução direta: npm run seed
+if (require.main === module) {
+  (async () => {
+    await conectar();
+    await popular();
+    for (const d of dados) console.log(`  ${d._id}  ${d.nome}${d.ativa ? '' : ' (inativa)'}`);
+    await client.close();
+  })().catch(async (err) => {
+    console.error(err);
+    await client.close();
+    process.exit(1);
+  });
+}

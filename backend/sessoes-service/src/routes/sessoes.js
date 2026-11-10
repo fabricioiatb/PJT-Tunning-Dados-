@@ -53,10 +53,9 @@ router.post('/checkin', async (req, res) => {
   if (!garagem.aceita_tipo) throw new HttpError(409, `Garagem não aceita veículos do tipo ${tipo}`);
 
   // 3. Capacidade
-  const abertas = await db().execute(
-    'SELECT tipo_veiculo FROM sessoes_abertas_por_garagem WHERE garagem_id = ?',
-    [garagemId]
-  );
+  const abertas = await db().execute('SELECT tipo_veiculo FROM sessoes_abertas_por_garagem WHERE garagem_id = ?', [
+    garagemId,
+  ]);
   const ocupadas = abertas.rows.filter((r) => r.tipo_veiculo === tipo).length;
   if (!mensalista && ocupadas >= garagem.total_vagas) {
     throw new HttpError(409, `Garagem lotada para ${tipo}`, { ocupadas, total_vagas: garagem.total_vagas });
@@ -78,7 +77,7 @@ router.post('/checkin', async (req, res) => {
        (placa, sessao_id, garagem_id, garagem_nome, entrada, tipo_veiculo, cliente_id, mensalista, tarifa)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      IF NOT EXISTS`,
-    [placa, sessaoId, garagemId, garagem.nome, entrada, tipo, clienteId, mensalista, tarifa]
+    [placa, sessaoId, garagemId, garagem.nome, entrada, tipo, clienteId, mensalista, tarifa],
   );
   if (!lwt.wasApplied()) {
     const atual = lwt.first();
@@ -113,7 +112,7 @@ router.post('/checkin', async (req, res) => {
           params: [placa, entrada, sessaoId, garagemId, garagem.nome, tipo, mensalista],
         },
       ],
-      { logged: true }
+      { logged: true },
     );
   } catch (err) {
     // Desfaz a reserva da placa (também via LWT, para não misturar LWT e
@@ -181,10 +180,10 @@ router.post('/checkout', async (req, res) => {
   };
   const cobranca = calcular({ entrada: s.entrada, saida, mensalista, tarifa });
 
-  const del = await db().execute(
-    'DELETE FROM sessoes_abertas_por_placa WHERE placa = ? IF sessao_id = ?',
-    [placa, s.sessao_id]
-  );
+  const del = await db().execute('DELETE FROM sessoes_abertas_por_placa WHERE placa = ? IF sessao_id = ?', [
+    placa,
+    s.sessao_id,
+  ]);
   if (!del.wasApplied()) throw new HttpError(409, 'Check-out já realizado para esta sessão');
 
   const dia = diaDe(s.entrada);
@@ -208,7 +207,7 @@ router.post('/checkout', async (req, res) => {
         params: [saida, cobranca.minutos, valor, mensalista, placa, s.entrada, s.sessao_id],
       },
     ],
-    { logged: true }
+    { logged: true },
   );
 
   res.json({
@@ -240,6 +239,71 @@ router.get('/abertas/:placa', async (req, res) => {
   const sessao = formatar(s);
   const parcial = calcular({ entrada: s.entrada, saida: new Date(), mensalista: s.mensalista, tarifa: sessao.tarifa });
   res.json({ ...sessao, minutos_ate_agora: parcial.minutos, valor_se_sair_agora: parcial.valor });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /sessoes/:sessao_id?garagem_id=&placa=&entrada=ISO
+//
+// Exclui uma sessão (o "D" do CRUD): cancela um check-in feito por engano
+// (sessão ABERTA, libera a vaga) ou remove um registro do histórico.
+//
+// No Cassandra não existe "DELETE WHERE sessao_id = ?" sem a chave completa:
+// é preciso informar a partição e o clustering de cada tabela. Por isso a
+// rota recebe garagem_id + entrada (-> partição (garagem_id, dia)) e placa —
+// valores que a API já devolve em todas as listagens.
+// ---------------------------------------------------------------------------
+router.delete('/:sessao_id', async (req, res) => {
+  let sessaoId;
+  try {
+    sessaoId = types.Uuid.fromString(req.params.sessao_id);
+  } catch {
+    throw new HttpError(400, 'sessao_id inválido (UUID)');
+  }
+  const garagemId = garagemIdValido(req.query.garagem_id);
+  const placa = placaValida(req.query.placa);
+  const entrada = dataOpcional(req.query.entrada, 'entrada', null);
+  if (!entrada) throw new HttpError(400, 'Informe entrada (ISO 8601), como devolvida nas listagens');
+
+  const dia = diaDe(entrada);
+  const r = await db().execute(
+    `SELECT status, placa FROM sessoes_por_garagem
+      WHERE garagem_id = ? AND dia = ? AND entrada = ? AND sessao_id = ?`,
+    [garagemId, dia, entrada, sessaoId],
+  );
+  const s = r.first();
+  if (!s) throw new HttpError(404, 'Sessão não encontrada. Confira garagem_id, entrada e sessao_id.');
+  if (s.placa !== placa) throw new HttpError(400, 'A placa não corresponde à sessão');
+
+  const operacoes = [
+    {
+      query: 'DELETE FROM sessoes_por_garagem WHERE garagem_id = ? AND dia = ? AND entrada = ? AND sessao_id = ?',
+      params: [garagemId, dia, entrada, sessaoId],
+    },
+    {
+      query: 'DELETE FROM sessoes_por_placa WHERE placa = ? AND entrada = ? AND sessao_id = ?',
+      params: [placa, entrada, sessaoId],
+    },
+  ];
+
+  // Sessão ABERTA: libera a "reserva" da placa (LWT, só se ainda for ESTA
+  // sessão) e a vaga na garagem. Para uma sessão FECHADA essas tabelas não
+  // são tocadas — a placa pode estar estacionada de novo, em outra sessão.
+  if (s.status === 'ABERTA') {
+    const lwt = await db().execute('DELETE FROM sessoes_abertas_por_placa WHERE placa = ? IF sessao_id = ?', [
+      placa,
+      sessaoId,
+    ]);
+    if (lwt.wasApplied()) {
+      operacoes.push({
+        query: 'DELETE FROM sessoes_abertas_por_garagem WHERE garagem_id = ? AND placa = ?',
+        params: [garagemId, placa],
+      });
+    }
+  }
+
+  await db().batch(operacoes, { logged: true });
+
+  res.status(204).end();
 });
 
 module.exports = router;

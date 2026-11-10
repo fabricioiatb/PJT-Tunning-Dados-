@@ -37,7 +37,7 @@ router.get('/:id', async (req, res) => {
     pool.query('SELECT * FROM veiculos WHERE cliente_id = $1 ORDER BY placa', [req.params.id]),
     pool.query(
       `SELECT p.*, (${PLANO_VIGENTE}) AS vigente FROM planos p WHERE p.cliente_id = $1 ORDER BY p.data_inicio DESC`,
-      [req.params.id]
+      [req.params.id],
     ),
   ]);
 
@@ -55,7 +55,7 @@ router.post('/', async (req, res) => {
   const cliente = await withTransaction(async (tx) => {
     const { rows } = await tx.query(
       `INSERT INTO clientes (nome, cpf, email, telefone) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [nome, cpf, email, telefone]
+      [nome, cpf, email, telefone],
     );
     const novo = rows[0];
     novo.veiculos = [];
@@ -64,7 +64,7 @@ router.post('/', async (req, res) => {
       const r = await tx.query(
         `INSERT INTO veiculos (cliente_id, placa, modelo, cor, tipo)
          VALUES ($1, $2, $3, $4, COALESCE($5, 'CARRO')) RETURNING *`,
-        [novo.id, normalizarPlaca(v.placa), v.modelo, v.cor, v.tipo]
+        [novo.id, normalizarPlaca(v.placa), v.modelo, v.cor, v.tipo],
       );
       novo.veiculos.push(r.rows[0]);
     }
@@ -81,7 +81,7 @@ router.put('/:id', async (req, res) => {
 
   const { rows } = await pool.query(
     `UPDATE clientes SET ${upd.sets} WHERE id = $${upd.values.length + 1} RETURNING *`,
-    [...upd.values, req.params.id]
+    [...upd.values, req.params.id],
   );
   if (!rows.length) throw notFound('Cliente');
   res.json(rows[0]);

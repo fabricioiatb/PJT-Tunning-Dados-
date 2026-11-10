@@ -24,7 +24,7 @@ router.get('/garagens/:id/tarifa', async (req, res) => {
         tarifas: { $elemMatch: { tipo_veiculo: tipo } },
         vagas: { $elemMatch: { tipo } },
       },
-    }
+    },
   );
   if (!g) throw notFound('Garagem');
 

@@ -25,6 +25,15 @@ const PORT = process.env.PORT || 3003;
 conectar()
   .then(() => {
     app.listen(PORT, () => console.log(`sessoes-service ouvindo em http://localhost:${PORT}`));
+
+    // Ambiente novo (ex.: docker compose): gera histórico de exemplo em
+    // segundo plano se o Cassandra estiver vazio. SEED_SE_VAZIO = quantidade.
+    const qtd = parseInt(process.env.SEED_SE_VAZIO, 10);
+    if (qtd > 0) {
+      require('./seed')
+        .gerarSeVazio(qtd, 30)
+        .catch((err) => console.error('Seed de sessões falhou:', err.message));
+    }
   })
   .catch((err) => {
     console.error('Falha ao conectar no Cassandra:', err.message);

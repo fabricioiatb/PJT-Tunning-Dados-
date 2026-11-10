@@ -1,8 +1,21 @@
 import { useEffect, useState } from 'react';
 import { api, brl, dataHora, duracao, pct, TIPOS, NOME_TIPO } from '../api';
 import {
-  Alerta, Badge, BotaoEnviar, CabecalhoPagina, Campo, Card, Carregando, InputPlaca, Placa,
-  SelectGaragem, TipoVeiculo, Vazio, useAcao, useCarregar,
+  Alerta,
+  Badge,
+  BotaoEnviar,
+  CabecalhoPagina,
+  Campo,
+  Card,
+  Carregando,
+  InputPlaca,
+  Placa,
+  SelectGaragem,
+  TipoVeiculo,
+  Vazio,
+  useAcao,
+  useCarregar,
+  useConfirmar,
 } from '../ui';
 import { useParamUrl } from '../url';
 
@@ -44,9 +57,7 @@ function Recibo({ r }) {
         )}
       </dl>
       {r.mensalista_fonte === 'CHECKIN' && (
-        <Alerta tipo="aviso">
-          Serviço de Clientes fora do ar: foi usado o tipo de cliente registrado na entrada.
-        </Alerta>
+        <Alerta tipo="aviso">Serviço de Clientes fora do ar: foi usado o tipo de cliente registrado na entrada.</Alerta>
       )}
     </div>
   );
@@ -204,9 +215,11 @@ function CheckOut({ pedido, onFeito }) {
 }
 
 function Ocupacao({ garagemId, versao, onSaida }) {
+  const [confirmar, dialogo] = useConfirmar();
+  const acao = useAcao();
   const { dados, erro, carregando, recarregar } = useCarregar(
     () => (garagemId ? api.ocupacao(garagemId) : Promise.resolve(null)),
-    [garagemId, versao]
+    [garagemId, versao],
   );
 
   useEffect(() => {
@@ -226,7 +239,11 @@ function Ocupacao({ garagemId, versao, onSaida }) {
         </button>
       }
     >
+      {dialogo}
       <Alerta>{erro}</Alerta>
+      <Alerta focar onFechar={() => acao.setErro(null)}>
+        {acao.erro}
+      </Alerta>
       {dados?.aviso && <Alerta tipo="aviso">{dados.aviso}</Alerta>}
       {carregando && !dados ? (
         <Carregando texto="Carregando ocupação…" />
@@ -271,7 +288,9 @@ function Ocupacao({ garagemId, versao, onSaida }) {
                       <th scope="col">Tipo</th>
                       <th scope="col">Cliente</th>
                       <th scope="col">Entrada</th>
-                      <th scope="col" className="num">Tempo</th>
+                      <th scope="col" className="num">
+                        Tempo
+                      </th>
                       <th scope="col">
                         <span className="sr-only">Ações</span>
                       </th>
@@ -292,14 +311,35 @@ function Ocupacao({ garagemId, versao, onSaida }) {
                         <td>{dataHora(v.entrada)}</td>
                         <td className="num">{duracao(Math.ceil((Date.now() - new Date(v.entrada)) / 60000))}</td>
                         <td className="num">
-                          <button
-                            type="button"
-                            className="btn btn-pequeno"
-                            onClick={() => onSaida(v.placa)}
-                            aria-label={`Registrar saída de ${v.placa}`}
-                          >
-                            Registrar saída
-                          </button>
+                          <div className="card-acoes" style={{ justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              className="btn btn-pequeno"
+                              onClick={() => onSaida(v.placa)}
+                              aria-label={`Registrar saída de ${v.placa}`}
+                            >
+                              Registrar saída
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-pequeno btn-perigo"
+                              disabled={acao.ocupado}
+                              aria-label={`Cancelar entrada de ${v.placa}`}
+                              onClick={async () => {
+                                const ok = await confirmar({
+                                  titulo: `Cancelar a entrada de ${v.placa}?`,
+                                  texto:
+                                    'Use para um check-in registrado por engano: a sessão é excluída sem cobrança e a vaga é liberada.',
+                                  acao: 'Cancelar entrada',
+                                });
+                                if (!ok) return;
+                                const r = await acao.executar(() => api.removerSessao(v, garagemId));
+                                if (r !== undefined) recarregar();
+                              }}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -339,7 +379,11 @@ export default function Operacao({ garagens, erroGaragens }) {
           <Card titulo="Garagem" id="garagem">
             <Alerta>{erroGaragens}</Alerta>
             <Campo label="Garagem em operação" className="sem-margem">
-              <SelectGaragem garagens={garagens} valor={garagemId} onChange={(v) => setGaragemId(v, { replace: false })} />
+              <SelectGaragem
+                garagens={garagens}
+                valor={garagemId}
+                onChange={(v) => setGaragemId(v, { replace: false })}
+              />
             </Campo>
           </Card>
           <CheckIn garagemId={garagemId} garagem={garagem} onFeito={atualizar} />

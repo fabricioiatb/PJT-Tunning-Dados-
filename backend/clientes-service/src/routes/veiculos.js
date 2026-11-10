@@ -40,7 +40,7 @@ router.post('/', async (req, res) => {
   const { rows } = await pool.query(
     `INSERT INTO veiculos (cliente_id, placa, modelo, cor, tipo)
      VALUES ($1, $2, $3, $4, COALESCE($5, 'CARRO')) RETURNING *`,
-    [cliente_id, normalizarPlaca(req.body.placa), modelo, cor, tipo]
+    [cliente_id, normalizarPlaca(req.body.placa), modelo, cor, tipo],
   );
   res.status(201).json(rows[0]);
 });
@@ -53,7 +53,7 @@ router.put('/:id', async (req, res) => {
 
   const { rows } = await pool.query(
     `UPDATE veiculos SET ${upd.sets} WHERE id = $${upd.values.length + 1} RETURNING *`,
-    [...upd.values, req.params.id]
+    [...upd.values, req.params.id],
   );
   if (!rows.length) throw notFound('Veículo');
   res.json(rows[0]);

@@ -10,7 +10,7 @@ const router = Router();
 // para usar FK. A integridade é verificada perguntando ao Serviço de Garagens.
 // Se GARAGENS_SERVICE_URL não estiver configurada, só o formato é validado.
 async function verificarGaragem(garagemId) {
-  const base = process.env.GARAGENS_SERVICE_URL;
+  const base = process.env.GARAGENS_SERVICE_URL ?? 'http://localhost:3002';
   if (!base) return;
 
   let resp;
@@ -70,7 +70,7 @@ router.post('/', async (req, res) => {
   const { rows } = await pool.query(
     `INSERT INTO planos (cliente_id, garagem_id, valor_mensal, data_inicio)
      VALUES ($1, $2, $3, COALESCE($4::date, CURRENT_DATE)) RETURNING *`,
-    [cliente_id, garagem_id, valor_mensal, data_inicio]
+    [cliente_id, garagem_id, valor_mensal, data_inicio],
   );
   res.status(201).json(rows[0]);
 });
@@ -79,10 +79,10 @@ router.post('/', async (req, res) => {
 // garagem = encerrar este plano e abrir outro (preserva o histórico).
 router.put('/:id', async (req, res) => {
   exigir(req.body, ['valor_mensal']);
-  const { rows } = await pool.query(
-    'UPDATE planos SET valor_mensal = $1 WHERE id = $2 RETURNING *',
-    [req.body.valor_mensal, req.params.id]
-  );
+  const { rows } = await pool.query('UPDATE planos SET valor_mensal = $1 WHERE id = $2 RETURNING *', [
+    req.body.valor_mensal,
+    req.params.id,
+  ]);
   if (!rows.length) throw notFound('Plano');
   res.json(rows[0]);
 });
@@ -102,7 +102,7 @@ router.patch('/:id/encerrar', async (req, res) => {
               data_fim = GREATEST(CURRENT_DATE, data_inicio)
         WHERE id = $1
         RETURNING *`,
-      [req.params.id]
+      [req.params.id],
     );
     return r.rows[0];
   });

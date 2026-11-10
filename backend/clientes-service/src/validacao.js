@@ -1,8 +1,7 @@
 const { HttpError } = require('./errors');
 
 // "abc-1d23" -> "ABC1D23" (aceita placa antiga e Mercosul)
-const normalizarPlaca = (placa) =>
-  typeof placa === 'string' ? placa.toUpperCase().replace(/[^A-Z0-9]/g, '') : placa;
+const normalizarPlaca = (placa) => (typeof placa === 'string' ? placa.toUpperCase().replace(/[^A-Z0-9]/g, '') : placa);
 
 // "123.456.789-00" -> "12345678900"
 const normalizarCpf = (cpf) => (typeof cpf === 'string' ? cpf.replace(/\D/g, '') : cpf);

@@ -77,7 +77,9 @@ async function conectar({ tentativas = 10, intervaloMs = 2000 } = {}) {
       break;
     } catch (err) {
       if (i === tentativas) throw err;
-      console.log(`MongoDB indisponível (${err.message}), tentando de novo em ${intervaloMs}ms... [${i}/${tentativas}]`);
+      console.log(
+        `MongoDB indisponível (${err.message}), tentando de novo em ${intervaloMs}ms... [${i}/${tentativas}]`,
+      );
       await new Promise((r) => setTimeout(r, intervaloMs));
     }
   }

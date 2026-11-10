@@ -243,7 +243,15 @@ export const InputPlaca = ({ valor, onChange, name = 'placa', ...props }) => (
   />
 );
 
-export function SelectGaragem({ garagens, valor, onChange, apenasAtivas = true, vazio, name = 'garagem', required = true }) {
+export function SelectGaragem({
+  garagens,
+  valor,
+  onChange,
+  apenasAtivas = true,
+  vazio,
+  name = 'garagem',
+  required = true,
+}) {
   const lista = (garagens || []).filter((g) => !apenasAtivas || g.ativa);
   return (
     <select name={name} value={valor || ''} onChange={(e) => onChange(e.target.value)} required={required}>

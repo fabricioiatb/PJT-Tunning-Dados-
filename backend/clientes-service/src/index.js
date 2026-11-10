@@ -25,6 +25,10 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3001;
 
 initSchema()
+  .then(async () => {
+    // Ambiente novo (ex.: docker compose): popula com exemplos se estiver vazio.
+    if (process.env.SEED_SE_VAZIO === 'true') await require('./seed').popular({ somenteSeVazio: true });
+  })
   .then(() => {
     app.listen(PORT, () => console.log(`clientes-service ouvindo em http://localhost:${PORT}`));
   })

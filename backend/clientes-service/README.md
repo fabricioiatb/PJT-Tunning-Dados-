@@ -18,6 +18,10 @@ npm run dev
 
 O schema ([`db/schema.sql`](db/schema.sql)) é aplicado automaticamente na inicialização (idempotente, `CREATE ... IF NOT EXISTS`).
 
+`npm run seed` insere 4 clientes de exemplo (com veículos e planos nas garagens do seed do MongoDB). No docker compose isso acontece sozinho se o banco estiver vazio (`SEED_SE_VAZIO=true`).
+
+Sem `.env`, o serviço usa os valores padrão do docker compose (`localhost:5433` e Serviço de Garagens em `localhost:3002`). As datas (`CURRENT_DATE`) usam o fuso `America/Sao_Paulo`, configurável em `DB_TIMEZONE`.
+
 ## Modelo de dados
 
 ```
@@ -70,7 +74,7 @@ Placas aceitam formato antigo e Mercosul, com ou sem hífen e em qualquer caixa 
 | POST | `/planos` | `{ cliente_id, garagem_id, valor_mensal, data_inicio? }` |
 | PUT | `/planos/:id` | `{ valor_mensal }` |
 | PATCH | `/planos/:id/encerrar` | Encerra (`ativo = false`, `data_fim = hoje`) |
-| DELETE | `/planos/:id` | Remove |
+| DELETE | `/planos/:id` | Remove (no frontend: só planos já encerrados) |
 
 ### Interno (usado pelo Serviço de Sessões)
 `GET /interno/mensalista?placa=ABC1D23&garagem_id=<ObjectId>`

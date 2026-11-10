@@ -1,14 +1,35 @@
 import { useState } from 'react';
 import { api, brl, TIPOS, NOME_TIPO } from '../api';
 import {
-  Alerta, Badge, BotaoEnviar, CabecalhoPagina, Campo, Card, TipoVeiculo, Vazio, useAcao, useAvisoSaida, useConfirmar,
+  Alerta,
+  Badge,
+  BotaoEnviar,
+  CabecalhoPagina,
+  Campo,
+  Card,
+  TipoVeiculo,
+  Vazio,
+  useAcao,
+  useAvisoSaida,
+  useConfirmar,
 } from '../ui';
 import { useParamUrl } from '../url';
 
 // Campos do "núcleo" (validados pelo $jsonSchema). O resto é livre por garagem.
-const NUCLEO = new Set(['_id', 'nome', 'ativa', 'endereco', 'vagas', 'tarifas', 'comodidades', 'criado_em', 'atualizado_em', 'total_vagas']);
+const NUCLEO = new Set([
+  '_id',
+  'nome',
+  'ativa',
+  'endereco',
+  'vagas',
+  'tarifas',
+  'comodidades',
+  'criado_em',
+  'atualizado_em',
+  'total_vagas',
+]);
 
-function CardGaragem({ g, onAlterado, confirmar }) {
+function CardGaragem({ g, onAlterado, confirmar, hrefEditar }) {
   const acao = useAcao();
   const extras = Object.fromEntries(Object.entries(g).filter(([k]) => !NUCLEO.has(k)));
   const e = g.endereco || {};
@@ -37,11 +58,21 @@ function CardGaragem({ g, onAlterado, confirmar }) {
           <thead>
             <tr>
               <th scope="col">Tipo</th>
-              <th scope="col" className="num">Vagas</th>
-              <th scope="col" className="num">Toler.</th>
-              <th scope="col" className="num">1ª hora</th>
-              <th scope="col" className="num">Adic.</th>
-              <th scope="col" className="num">Diária</th>
+              <th scope="col" className="num">
+                Vagas
+              </th>
+              <th scope="col" className="num">
+                Toler.
+              </th>
+              <th scope="col" className="num">
+                1ª hora
+              </th>
+              <th scope="col" className="num">
+                Adic.
+              </th>
+              <th scope="col" className="num">
+                Diária
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -91,6 +122,9 @@ function CardGaragem({ g, onAlterado, confirmar }) {
           {g._id}
         </small>
         <div className="card-acoes">
+          <a className="btn btn-pequeno" href={hrefEditar} aria-label={`Editar ${g.nome}`}>
+            Editar
+          </a>
           <button
             type="button"
             className="btn btn-pequeno"
@@ -99,7 +133,8 @@ function CardGaragem({ g, onAlterado, confirmar }) {
               if (g.ativa) {
                 const ok = await confirmar({
                   titulo: `Desativar ${g.nome}?`,
-                  texto: 'A garagem deixa de aceitar check-ins e novos planos. Os dados são mantidos e você pode reativá-la depois.',
+                  texto:
+                    'A garagem deixa de aceitar check-ins e novos planos. Os dados são mantidos e você pode reativá-la depois.',
                   acao: 'Desativar garagem',
                 });
                 if (!ok) return;
@@ -116,7 +151,8 @@ function CardGaragem({ g, onAlterado, confirmar }) {
             onClick={async () => {
               const ok = await confirmar({
                 titulo: `Excluir ${g.nome}?`,
-                texto: 'O documento é removido do MongoDB e não pode ser recuperado. Para apenas parar a operação, prefira desativar.',
+                texto:
+                  'O documento é removido do MongoDB e não pode ser recuperado. Para apenas parar a operação, prefira desativar.',
                 acao: 'Excluir garagem',
               });
               if (ok) agir(() => api.removerGaragem(g._id));
@@ -130,8 +166,26 @@ function CardGaragem({ g, onAlterado, confirmar }) {
   );
 }
 
-const tipoVazio = { usar: false, total: '', tolerancia_minutos: '15', primeira_hora: '', hora_adicional: '', diaria_maxima: '' };
-const formVazio = { nome: '', logradouro: '', numero: '', bairro: '', cidade: '', uf: 'SP', lat: '', lng: '', comodidades: '', extras: '' };
+const tipoVazio = {
+  usar: false,
+  total: '',
+  tolerancia_minutos: '15',
+  primeira_hora: '',
+  hora_adicional: '',
+  diaria_maxima: '',
+};
+const formVazio = {
+  nome: '',
+  logradouro: '',
+  numero: '',
+  bairro: '',
+  cidade: '',
+  uf: 'SP',
+  lat: '',
+  lng: '',
+  comodidades: '',
+  extras: '',
+};
 
 const CAMPOS_TARIFA = [
   ['total', 'Vagas', 'numeric', 1, '50'],
@@ -141,13 +195,59 @@ const CAMPOS_TARIFA = [
   ['diaria_maxima', 'Diária máx. (R$)', 'decimal', 0.01, '50'],
 ];
 
-function NovaGaragem({ onCriada, onCancelar }) {
-  const [f, setF] = useState(formVazio);
-  const [tipos, setTipos] = useState({ CARRO: { ...tipoVazio, usar: true }, MOTO: { ...tipoVazio }, UTILITARIO: { ...tipoVazio } });
+const str = (v) => (v == null ? '' : String(v));
+
+// Documento da garagem -> estado do formulário (para edição).
+function paraFormulario(g) {
+  const e = g.endereco || {};
+  const [lng, lat] = e.localizacao?.coordinates || [];
+  const extras = Object.fromEntries(Object.entries(g).filter(([k]) => !NUCLEO.has(k)));
+  const tipos = {};
+  for (const t of TIPOS) {
+    const v = g.vagas.find((x) => x.tipo === t);
+    const tr = g.tarifas.find((x) => x.tipo_veiculo === t) || {};
+    tipos[t] = v
+      ? {
+          usar: true,
+          total: str(v.total),
+          tolerancia_minutos: str(tr.tolerancia_minutos),
+          primeira_hora: str(tr.primeira_hora),
+          hora_adicional: str(tr.hora_adicional),
+          diaria_maxima: str(tr.diaria_maxima),
+        }
+      : { ...tipoVazio };
+  }
+  return {
+    f: {
+      nome: g.nome,
+      logradouro: str(e.logradouro),
+      numero: str(e.numero),
+      bairro: str(e.bairro),
+      cidade: str(e.cidade),
+      uf: str(e.uf),
+      lat: str(lat),
+      lng: str(lng),
+      comodidades: (g.comodidades || []).join(', '),
+      extras: Object.keys(extras).length ? JSON.stringify(extras, null, 2) : '',
+    },
+    tipos,
+  };
+}
+
+// Cadastro (POST) e edição (PUT, substitui o documento inteiro) de garagem.
+function FormGaragem({ garagem, onSalva, onCancelar }) {
+  const inicial = garagem
+    ? paraFormulario(garagem)
+    : {
+        f: formVazio,
+        tipos: { CARRO: { ...tipoVazio, usar: true }, MOTO: { ...tipoVazio }, UTILITARIO: { ...tipoVazio } },
+      };
+  const [f, setF] = useState(inicial.f);
+  const [tipos, setTipos] = useState(inicial.tipos);
   const { ocupado, erro, setErro, executar } = useAcao();
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const setTipo = (tipo, k, v) => setTipos({ ...tipos, [tipo]: { ...tipos[tipo], [k]: v } });
-  useAvisoSaida(Object.keys(f).some((k) => f[k] !== formVazio[k]));
+  useAvisoSaida(Object.keys(f).some((k) => f[k] !== inicial.f[k]));
 
   const enviar = async (e) => {
     e.preventDefault();
@@ -181,31 +281,74 @@ function NovaGaragem({ onCriada, onCancelar }) {
         hora_adicional: num(tipos[t].hora_adicional),
         diaria_maxima: num(tipos[t].diaria_maxima),
       })),
-      comodidades: f.comodidades.split(',').map((s) => s.trim()).filter(Boolean),
+      comodidades: f.comodidades
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
     };
-    const r = await executar(() => api.criarGaragem(body));
-    if (r) onCriada();
+    const r = await executar(() =>
+      garagem ? api.substituirGaragem(garagem._id, { ...body, ativa: garagem.ativa }) : api.criarGaragem(body),
+    );
+    if (r) onSalva();
   };
 
   return (
-    <Card titulo="Nova garagem" id="nova-garagem">
+    <Card
+      titulo={garagem ? `Editar ${garagem.nome}` : 'Nova garagem'}
+      id={garagem ? `editar-${garagem._id}` : 'nova-garagem'}
+      className="largura-total"
+    >
+      {garagem && (
+        <p className="nota" style={{ marginBottom: 14 }}>
+          A edição substitui o documento inteiro no <span translate="no">MongoDB</span> (PUT): um campo extra apagado do
+          JSON deixa de existir na garagem.
+        </p>
+      )}
       <form onSubmit={enviar}>
         <div className="linha">
           <Campo label="Nome">
-            <input name="nome" value={f.nome} onChange={set('nome')} autoComplete="off" placeholder="ex.: Garagem Centro…" required />
+            <input
+              name="nome"
+              value={f.nome}
+              onChange={set('nome')}
+              autoComplete="off"
+              placeholder="ex.: Garagem Centro…"
+              required
+            />
           </Campo>
           <Campo label="Cidade">
-            <input name="cidade" value={f.cidade} onChange={set('cidade')} autoComplete="off" placeholder="ex.: São Paulo…" required />
+            <input
+              name="cidade"
+              value={f.cidade}
+              onChange={set('cidade')}
+              autoComplete="off"
+              placeholder="ex.: São Paulo…"
+              required
+            />
           </Campo>
           <div className="fixo" style={{ width: 90 }}>
             <Campo label="UF">
-              <input name="uf" value={f.uf} onChange={set('uf')} maxLength={2} autoComplete="off" spellCheck={false} required />
+              <input
+                name="uf"
+                value={f.uf}
+                onChange={set('uf')}
+                maxLength={2}
+                autoComplete="off"
+                spellCheck={false}
+                required
+              />
             </Campo>
           </div>
         </div>
         <div className="linha">
           <Campo label="Logradouro">
-            <input name="logradouro" value={f.logradouro} onChange={set('logradouro')} autoComplete="off" placeholder="ex.: Av. Paulista…" />
+            <input
+              name="logradouro"
+              value={f.logradouro}
+              onChange={set('logradouro')}
+              autoComplete="off"
+              placeholder="ex.: Av. Paulista…"
+            />
           </Campo>
           <div className="fixo" style={{ width: 110 }}>
             <Campo label="Número">
@@ -217,19 +360,43 @@ function NovaGaragem({ onCriada, onCancelar }) {
           </Campo>
         </div>
         <div className="linha">
-          <Campo label="Latitude" dica="Opcional; habilita a busca por proximidade.">
-            <input name="lat" value={f.lat} onChange={set('lat')} inputMode="decimal" autoComplete="off" spellCheck={false} placeholder="ex.: -23.56…" />
+          <Campo label="Latitude (opcional)">
+            <input
+              name="lat"
+              value={f.lat}
+              onChange={set('lat')}
+              inputMode="decimal"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="ex.: -23.56…"
+            />
           </Campo>
           <Campo label="Longitude">
-            <input name="lng" value={f.lng} onChange={set('lng')} inputMode="decimal" autoComplete="off" spellCheck={false} placeholder="ex.: -46.65…" />
+            <input
+              name="lng"
+              value={f.lng}
+              onChange={set('lng')}
+              inputMode="decimal"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="ex.: -46.65…"
+            />
           </Campo>
         </div>
+        <p className="nota" style={{ margin: '-4px 0 14px' }}>
+          Com latitude e longitude, a garagem entra na busca por proximidade (índice geoespacial 2dsphere).
+        </p>
 
         {TIPOS.map((t) => (
           <fieldset className="form-tipo" key={t}>
             <legend>
               <label className="checkbox">
-                <input type="checkbox" name={`usar-${t}`} checked={tipos[t].usar} onChange={(e) => setTipo(t, 'usar', e.target.checked)} />
+                <input
+                  type="checkbox"
+                  name={`usar-${t}`}
+                  checked={tipos[t].usar}
+                  onChange={(e) => setTipo(t, 'usar', e.target.checked)}
+                />
                 Aceita {NOME_TIPO[t].toLowerCase()}
               </label>
             </legend>
@@ -257,13 +424,26 @@ function NovaGaragem({ onCriada, onCancelar }) {
         ))}
 
         <Campo label="Comodidades" dica="Separadas por vírgula.">
-          <input name="comodidades" value={f.comodidades} onChange={set('comodidades')} autoComplete="off" placeholder="ex.: coberta, lava-rapido…" />
+          <input
+            name="comodidades"
+            value={f.comodidades}
+            onChange={set('comodidades')}
+            autoComplete="off"
+            placeholder="ex.: coberta, lava-rapido…"
+          />
         </Campo>
         <Campo
           label="Campos extras (JSON livre)"
           dica="Schema flexível: qualquer campo adicional é aceito e aparece no cartão da garagem."
         >
-          <textarea name="extras" value={f.extras} onChange={set('extras')} spellCheck={false} translate="no" placeholder='ex.: {"vista_mar": true}…' />
+          <textarea
+            name="extras"
+            value={f.extras}
+            onChange={set('extras')}
+            spellCheck={false}
+            translate="no"
+            placeholder='ex.: {"vista_mar": true}…'
+          />
         </Campo>
 
         <Alerta focar onFechar={() => setErro(null)}>
@@ -274,7 +454,7 @@ function NovaGaragem({ onCriada, onCancelar }) {
             Cancelar
           </button>
           <BotaoEnviar ocupado={ocupado} textoOcupado="Salvando garagem…">
-            Salvar garagem
+            {garagem ? 'Salvar alterações' : 'Salvar garagem'}
           </BotaoEnviar>
         </div>
       </form>
@@ -285,7 +465,9 @@ function NovaGaragem({ onCriada, onCancelar }) {
 export default function Garagens({ garagens, erroGaragens, recarregarGaragens }) {
   const [nova, setNova] = useParamUrl('nova');
   const [cidade, setCidade] = useParamUrl('cidade');
+  const [editar, setEditar] = useParamUrl('editar');
   const [confirmar, dialogo] = useConfirmar();
+  const linkEditar = (id) => `#garagens?${new URLSearchParams({ ...(cidade && { cidade }), editar: id })}`;
 
   const cidades = [...new Set(garagens.map((g) => g.endereco?.cidade))].sort((a, b) => a.localeCompare(b));
   const lista = garagens.filter((g) => !cidade || g.endereco?.cidade === cidade);
@@ -298,7 +480,10 @@ export default function Garagens({ garagens, erroGaragens, recarregarGaragens })
         descricao="Unidades da rede no MongoDB: vagas e tarifas embutidas no documento, e campos livres que variam de garagem para garagem."
         acoes={
           !nova && (
-            <a className="btn btn-primaria" href={`#garagens?${new URLSearchParams({ ...(cidade && { cidade }), nova: '1' })}`}>
+            <a
+              className="btn btn-primaria"
+              href={`#garagens?${new URLSearchParams({ ...(cidade && { cidade }), nova: '1' })}`}
+            >
               Cadastrar garagem
             </a>
           )
@@ -322,9 +507,9 @@ export default function Garagens({ garagens, erroGaragens, recarregarGaragens })
         <Alerta>{erroGaragens}</Alerta>
 
         {nova && (
-          <NovaGaragem
+          <FormGaragem
             onCancelar={() => setNova('', { replace: false })}
-            onCriada={() => {
+            onSalva={() => {
               setNova('', { replace: false });
               recarregarGaragens();
             }}
@@ -339,9 +524,27 @@ export default function Garagens({ garagens, erroGaragens, recarregarGaragens })
           </Card>
         ) : (
           <div className="grade grade-cards">
-            {lista.map((g) => (
-              <CardGaragem key={g._id} g={g} onAlterado={recarregarGaragens} confirmar={confirmar} />
-            ))}
+            {lista.map((g) =>
+              editar === g._id ? (
+                <FormGaragem
+                  key={g._id}
+                  garagem={g}
+                  onCancelar={() => setEditar('', { replace: false })}
+                  onSalva={() => {
+                    setEditar('', { replace: false });
+                    recarregarGaragens();
+                  }}
+                />
+              ) : (
+                <CardGaragem
+                  key={g._id}
+                  g={g}
+                  onAlterado={recarregarGaragens}
+                  confirmar={confirmar}
+                  hrefEditar={linkEditar(g._id)}
+                />
+              ),
+            )}
           </div>
         )}
       </div>

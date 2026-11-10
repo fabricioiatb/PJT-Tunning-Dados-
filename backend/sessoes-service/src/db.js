@@ -21,7 +21,10 @@ async function aplicarSchema(c) {
     .readFileSync(path.join(__dirname, '..', 'db', 'schema.cql'), 'utf8')
     .replace(/^\s*--.*$/gm, '')
     .replace(/garagem_sessoes/g, KEYSPACE);
-  for (const stmt of cql.split(';').map((s) => s.trim()).filter(Boolean)) {
+  for (const stmt of cql
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean)) {
     await c.execute(stmt);
   }
 }
@@ -38,7 +41,9 @@ async function conectar({ tentativas = 30, intervaloMs = 3000 } = {}) {
     } catch (err) {
       await semKeyspace.shutdown().catch(() => {});
       if (i === tentativas) throw err;
-      console.log(`Cassandra indisponível (${err.message.split('\n')[0]}), tentando de novo em ${intervaloMs}ms... [${i}/${tentativas}]`);
+      console.log(
+        `Cassandra indisponível (${err.message.split('\n')[0]}), tentando de novo em ${intervaloMs}ms... [${i}/${tentativas}]`,
+      );
       await new Promise((r) => setTimeout(r, intervaloMs));
     }
   }

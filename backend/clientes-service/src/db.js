@@ -10,8 +10,11 @@ types.setTypeParser(1082, (v) => v);
 types.setTypeParser(1700, (v) => (v === null ? null : parseFloat(v)));
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  // Padrão = docker-compose rodando localmente (funciona mesmo sem .env).
+  connectionString: process.env.DATABASE_URL || 'postgresql://garagem:garagem@localhost:5433/garagem_clientes',
   max: 10,
+  // CURRENT_DATE (início/fim dos planos) no fuso do Brasil, não em UTC.
+  options: `-c TimeZone=${process.env.DB_TIMEZONE || 'America/Sao_Paulo'}`,
 });
 
 // Executa uma função dentro de uma transação (BEGIN / COMMIT / ROLLBACK).
@@ -40,7 +43,9 @@ async function initSchema({ tentativas = 10, intervaloMs = 2000 } = {}) {
       return;
     } catch (err) {
       if (i === tentativas) throw err;
-      console.log(`Postgres indisponível (${err.code || err.message}), tentando de novo em ${intervaloMs}ms... [${i}/${tentativas}]`);
+      console.log(
+        `Postgres indisponível (${err.code || err.message}), tentando de novo em ${intervaloMs}ms... [${i}/${tentativas}]`,
+      );
       await new Promise((r) => setTimeout(r, intervaloMs));
     }
   }

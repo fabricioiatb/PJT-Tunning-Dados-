@@ -27,7 +27,7 @@ router.get('/mensalista', async (req, res) => {
              AND ${PLANO_VIGENTE}
       WHERE v.placa = $1
       LIMIT 1`,
-    [placa, req.query.garagem_id]
+    [placa, req.query.garagem_id],
   );
 
   if (!rows.length) {

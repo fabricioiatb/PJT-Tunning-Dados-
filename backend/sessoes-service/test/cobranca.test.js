@@ -7,8 +7,7 @@ const tarifa = { tolerancia_minutos: 15, primeira_hora: 18, hora_adicional: 8, d
 const entrada = new Date('2026-11-09T10:00:00Z');
 const depois = (min) => new Date(entrada.getTime() + min * 60000);
 
-const valor = (min, t = tarifa, mensalista = false) =>
-  calcular({ entrada, saida: depois(min), mensalista, tarifa: t });
+const valor = (min, t = tarifa, mensalista = false) => calcular({ entrada, saida: depois(min), mensalista, tarifa: t });
 
 test('mensalista não paga, independente do tempo', () => {
   assert.deepEqual(valor(600, tarifa, true), { minutos: 600, valor: 0, regra: 'MENSALISTA' });

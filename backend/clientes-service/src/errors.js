@@ -13,6 +13,9 @@ function errorHandler(err, req, res, next) {
   if (err instanceof HttpError) {
     return res.status(err.status).json({ erro: err.message });
   }
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ erro: 'JSON inválido no corpo da requisição' });
+  }
 
   switch (err.code) {
     case '23505': // unique_violation
@@ -21,7 +24,9 @@ function errorHandler(err, req, res, next) {
       }
       return res.status(409).json({ erro: `Registro duplicado (${err.constraint})`, detalhe: err.detail });
     case '23503': // foreign_key_violation
-      return res.status(400).json({ erro: 'Referência inválida (registro relacionado não existe)', detalhe: err.detail });
+      return res
+        .status(400)
+        .json({ erro: 'Referência inválida (registro relacionado não existe)', detalhe: err.detail });
     case '23514': // check_violation
       return res.status(400).json({ erro: `Valor inválido (${err.constraint})` });
     case '23502': // not_null_violation

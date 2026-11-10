@@ -39,7 +39,7 @@ export function useParamUrl(chave, padrao = '') {
       else window.history.pushState(null, '', hash);
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     },
-    [chave]
+    [chave],
   );
 
   return [valor, definir];

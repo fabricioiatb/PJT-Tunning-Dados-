@@ -29,7 +29,7 @@ function StatusServicos() {
         api
           .saude(s.id)
           .then(() => setStatus((st) => ({ ...st, [s.id]: true })))
-          .catch(() => setStatus((st) => ({ ...st, [s.id]: false })))
+          .catch(() => setStatus((st) => ({ ...st, [s.id]: false }))),
       );
     checar();
     const t = setInterval(checar, 10000);
@@ -104,7 +104,11 @@ export default function App() {
       </header>
 
       <main id="conteudo" ref={mainRef} tabIndex={-1} className="conteudo">
-        <aba.Comp garagens={garagens.dados || []} erroGaragens={garagens.erro} recarregarGaragens={garagens.recarregar} />
+        <aba.Comp
+          garagens={garagens.dados || []}
+          erroGaragens={garagens.erro}
+          recarregarGaragens={garagens.recarregar}
+        />
       </main>
     </div>
   );

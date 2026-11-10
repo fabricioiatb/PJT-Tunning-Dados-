@@ -1,8 +1,22 @@
 import { useEffect, useState } from 'react';
 import { api, brl, dia, TIPOS, NOME_TIPO } from '../api';
 import {
-  Alerta, Badge, BotaoEnviar, CabecalhoPagina, Campo, Card, Carregando, InputPlaca, Placa, SelectGaragem,
-  TipoVeiculo, Vazio, useAcao, useAvisoSaida, useCarregar, useConfirmar,
+  Alerta,
+  Badge,
+  BotaoEnviar,
+  CabecalhoPagina,
+  Campo,
+  Card,
+  Carregando,
+  InputPlaca,
+  Placa,
+  SelectGaragem,
+  TipoVeiculo,
+  Vazio,
+  useAcao,
+  useAvisoSaida,
+  useCarregar,
+  useConfirmar,
 } from '../ui';
 import { useParamUrl } from '../url';
 
@@ -32,7 +46,14 @@ function NovoCliente({ onCriado, onCancelar }) {
     <Card titulo="Novo cliente" id="novo-cliente">
       <form onSubmit={enviar}>
         <Campo label="Nome completo">
-          <input name="nome" value={f.nome} onChange={set('nome')} autoComplete="off" placeholder="ex.: Maria Souza…" required />
+          <input
+            name="nome"
+            value={f.nome}
+            onChange={set('nome')}
+            autoComplete="off"
+            placeholder="ex.: Maria Souza…"
+            required
+          />
         </Campo>
         <div className="linha">
           <Campo label="CPF" dica="Só números ou com pontuação.">
@@ -49,11 +70,27 @@ function NovoCliente({ onCriado, onCancelar }) {
             />
           </Campo>
           <Campo label="Telefone">
-            <input name="telefone" type="tel" inputMode="tel" value={f.telefone} onChange={set('telefone')} autoComplete="off" placeholder="ex.: (11) 99999-0000…" />
+            <input
+              name="telefone"
+              type="tel"
+              inputMode="tel"
+              value={f.telefone}
+              onChange={set('telefone')}
+              autoComplete="off"
+              placeholder="ex.: (11) 99999-0000…"
+            />
           </Campo>
         </div>
         <Campo label="E-mail">
-          <input name="email" type="email" value={f.email} onChange={set('email')} autoComplete="off" spellCheck={false} placeholder="ex.: maria@email.com…" />
+          <input
+            name="email"
+            type="email"
+            value={f.email}
+            onChange={set('email')}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="ex.: maria@email.com…"
+          />
         </Campo>
 
         <fieldset className="form-tipo">
@@ -63,7 +100,13 @@ function NovoCliente({ onCriado, onCancelar }) {
               <InputPlaca valor={f.placa} onChange={(v) => setF({ ...f, placa: v })} required={false} />
             </Campo>
             <Campo label="Modelo">
-              <input name="modelo" value={f.modelo} onChange={set('modelo')} autoComplete="off" placeholder="ex.: Onix…" />
+              <input
+                name="modelo"
+                value={f.modelo}
+                onChange={set('modelo')}
+                autoComplete="off"
+                placeholder="ex.: Onix…"
+              />
             </Campo>
             <Campo label="Tipo">
               <select name="tipo" value={f.tipo} onChange={set('tipo')}>
@@ -94,12 +137,190 @@ function NovoCliente({ onCriado, onCancelar }) {
   );
 }
 
+// Edição dos dados do cliente (PUT /clientes/:id).
+function EditarCliente({ c, onSalvo, onCancelar }) {
+  const inicial = { nome: c.nome, cpf: fmtCpf(c.cpf), email: c.email || '', telefone: c.telefone || '' };
+  const [f, setF] = useState(inicial);
+  const { ocupado, erro, executar } = useAcao();
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  useAvisoSaida(Object.keys(f).some((k) => f[k] !== inicial[k]));
+
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const r = await executar(() =>
+          api.atualizarCliente(c.id, {
+            nome: f.nome,
+            cpf: f.cpf,
+            email: f.email || null,
+            telefone: f.telefone || null,
+          }),
+        );
+        if (r) onSalvo();
+      }}
+    >
+      <Campo label="Nome completo">
+        <input name="nome" value={f.nome} onChange={set('nome')} autoComplete="off" required />
+      </Campo>
+      <div className="linha">
+        <Campo label="CPF">
+          <input
+            name="cpf"
+            value={f.cpf}
+            onChange={set('cpf')}
+            inputMode="numeric"
+            autoComplete="off"
+            spellCheck={false}
+            translate="no"
+            required
+          />
+        </Campo>
+        <Campo label="Telefone">
+          <input
+            name="telefone"
+            type="tel"
+            value={f.telefone}
+            onChange={set('telefone')}
+            autoComplete="off"
+            placeholder="ex.: (11) 99999-0000…"
+          />
+        </Campo>
+      </div>
+      <Campo label="E-mail">
+        <input
+          name="email"
+          type="email"
+          value={f.email}
+          onChange={set('email')}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="ex.: maria@email.com…"
+        />
+      </Campo>
+      <Alerta focar>{erro}</Alerta>
+      <div className="linha">
+        <button type="button" className="btn" onClick={onCancelar}>
+          Cancelar
+        </button>
+        <BotaoEnviar ocupado={ocupado} textoOcupado="Salvando alterações…">
+          Salvar alterações
+        </BotaoEnviar>
+      </div>
+    </form>
+  );
+}
+
+// Edição de um veículo em linha (PUT /veiculos/:id).
+function EditarVeiculo({ v, onSalvo, onCancelar }) {
+  const [f, setF] = useState({ placa: v.placa, modelo: v.modelo || '', cor: v.cor || '', tipo: v.tipo });
+  const { ocupado, erro, executar } = useAcao();
+  return (
+    <form
+      className="edicao-inline"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const r = await executar(() =>
+          api.atualizarVeiculo(v.id, { placa: f.placa, modelo: f.modelo || null, cor: f.cor || null, tipo: f.tipo }),
+        );
+        if (r) onSalvo();
+      }}
+    >
+      <div className="linha">
+        <Campo label="Placa">
+          <InputPlaca valor={f.placa} onChange={(p) => setF({ ...f, placa: p })} />
+        </Campo>
+        <Campo label="Modelo">
+          <input
+            name="modelo"
+            value={f.modelo}
+            onChange={(e) => setF({ ...f, modelo: e.target.value })}
+            autoComplete="off"
+          />
+        </Campo>
+        <Campo label="Cor">
+          <input name="cor" value={f.cor} onChange={(e) => setF({ ...f, cor: e.target.value })} autoComplete="off" />
+        </Campo>
+        <Campo label="Tipo">
+          <select name="tipo" value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value })}>
+            {TIPOS.map((t) => (
+              <option key={t} value={t}>
+                {NOME_TIPO[t]}
+              </option>
+            ))}
+          </select>
+        </Campo>
+      </div>
+      <Alerta focar>{erro}</Alerta>
+      <div className="card-acoes">
+        <button type="button" className="btn btn-pequeno" onClick={onCancelar}>
+          Cancelar
+        </button>
+        <BotaoEnviar ocupado={ocupado} className="btn-primaria btn-pequeno" textoOcupado="Salvando…">
+          Salvar veículo
+        </BotaoEnviar>
+      </div>
+    </form>
+  );
+}
+
+// Alteração do valor mensal de um plano (PUT /planos/:id).
+function EditarValorPlano({ p, onSalvo, onCancelar }) {
+  const [valor, setValor] = useState(String(p.valor_mensal));
+  const { ocupado, erro, executar } = useAcao();
+  return (
+    <form
+      className="edicao-inline"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const r = await executar(() => api.atualizarPlano(p.id, { valor_mensal: Number(valor) }));
+        if (r) onSalvo();
+      }}
+    >
+      <div className="linha">
+        <Campo label="Novo valor mensal (R$)">
+          <input
+            name="valor_mensal"
+            type="number"
+            inputMode="decimal"
+            min="1"
+            step="0.01"
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            autoComplete="off"
+            required
+          />
+        </Campo>
+        <div className="fixo card-acoes" style={{ marginBottom: 14 }}>
+          <button type="button" className="btn" onClick={onCancelar}>
+            Cancelar
+          </button>
+          <BotaoEnviar ocupado={ocupado} textoOcupado="Salvando…">
+            Salvar valor
+          </BotaoEnviar>
+        </div>
+      </div>
+      <Alerta focar>{erro}</Alerta>
+    </form>
+  );
+}
+
 function DetalheCliente({ id, garagens, onAlterado, onRemovido }) {
   const { dados: c, erro, carregando, recarregar } = useCarregar(() => api.cliente(id), [id]);
   const acao = useAcao();
   const [confirmar, dialogo] = useConfirmar();
   const [veiculo, setVeiculo] = useState({ placa: '', modelo: '', tipo: 'CARRO' });
   const [plano, setPlano] = useState({ garagem_id: '', valor_mensal: '' });
+  // O que está em edição: 'cliente', 'v-<id>' (veículo) ou 'p-<id>' (plano).
+  const [editando, setEditando] = useState(null);
+
+  useEffect(() => setEditando(null), [id]);
+
+  const salvo = async () => {
+    setEditando(null);
+    await recarregar();
+    onAlterado();
+  };
 
   const nomeGaragem = (gid) => garagens.find((g) => g._id === gid)?.nome || gid;
 
@@ -112,8 +333,18 @@ function DetalheCliente({ id, garagens, onAlterado, onRemovido }) {
     return r;
   };
 
-  if (carregando && !c) return <Card><Carregando texto="Carregando cliente…" /></Card>;
-  if (erro) return <Card><Alerta>{erro}</Alerta></Card>;
+  if (carregando && !c)
+    return (
+      <Card>
+        <Carregando texto="Carregando cliente…" />
+      </Card>
+    );
+  if (erro)
+    return (
+      <Card>
+        <Alerta>{erro}</Alerta>
+      </Card>
+    );
   if (!c) return null;
 
   return (
@@ -123,35 +354,50 @@ function DetalheCliente({ id, garagens, onAlterado, onRemovido }) {
         id="cliente"
         titulo={c.nome}
         acoes={
-          <button
-            type="button"
-            className="btn btn-pequeno btn-perigo"
-            onClick={async () => {
-              const ok = await confirmar({
-                titulo: `Excluir ${c.nome}?`,
-                texto: `Os ${c.veiculos.length} veículo(s) e ${c.planos.length} plano(s) do cliente também serão removidos. Essa ação não pode ser desfeita.`,
-                acao: 'Excluir cliente',
-              });
-              if (!ok) return;
-              const r = await acao.executar(() => api.removerCliente(c.id));
-              if (r !== undefined) onRemovido();
-            }}
-          >
-            Excluir cliente
-          </button>
+          <>
+            {editando !== 'cliente' && (
+              <button type="button" className="btn btn-pequeno" onClick={() => setEditando('cliente')}>
+                Editar dados
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-pequeno btn-perigo"
+              onClick={async () => {
+                const ok = await confirmar({
+                  titulo: `Excluir ${c.nome}?`,
+                  texto: `Os ${c.veiculos.length} veículo(s) e ${c.planos.length} plano(s) do cliente também serão removidos. Essa ação não pode ser desfeita.`,
+                  acao: 'Excluir cliente',
+                });
+                if (!ok) return;
+                const r = await acao.executar(() => api.removerCliente(c.id));
+                if (r !== undefined) onRemovido();
+              }}
+            >
+              Excluir cliente
+            </button>
+          </>
         }
       >
-        <div className="chips" style={{ alignItems: 'center' }}>
-          <Badge cor={c.tipo === 'MENSALISTA' ? 'azul' : 'cinza'}>{c.tipo === 'MENSALISTA' ? 'Mensalista' : 'Avulso'}</Badge>
-          <span className="suave" translate="no">
-            CPF {fmtCpf(c.cpf)}
-          </span>
-          {c.email && <span className="suave truncar">· {c.email}</span>}
-          {c.telefone && <span className="suave">· {c.telefone}</span>}
-        </div>
-        <p className="nota" style={{ marginTop: 10 }}>
-          O tipo é derivado: <b>mensalista</b> se existir um plano vigente; senão, <b>avulso</b>.
-        </p>
+        {editando === 'cliente' ? (
+          <EditarCliente c={c} onSalvo={salvo} onCancelar={() => setEditando(null)} />
+        ) : (
+          <>
+            <div className="chips" style={{ alignItems: 'center' }}>
+              <Badge cor={c.tipo === 'MENSALISTA' ? 'azul' : 'cinza'}>
+                {c.tipo === 'MENSALISTA' ? 'Mensalista' : 'Avulso'}
+              </Badge>
+              <span className="suave" translate="no">
+                CPF {fmtCpf(c.cpf)}
+              </span>
+              {c.email && <span className="suave truncar">· {c.email}</span>}
+              {c.telefone && <span className="suave">· {c.telefone}</span>}
+            </div>
+            <p className="nota" style={{ marginTop: 10 }}>
+              O tipo é derivado: <b>mensalista</b> se existir um plano vigente; senão, <b>avulso</b>.
+            </p>
+          </>
+        )}
       </Card>
 
       <Alerta focar onFechar={() => acao.setErro(null)}>
@@ -160,30 +406,44 @@ function DetalheCliente({ id, garagens, onAlterado, onRemovido }) {
 
       <Card titulo={`Veículos (${c.veiculos.length})`} id="veiculos">
         {c.veiculos.length === 0 && <Vazio titulo="Nenhum veículo">Adicione o primeiro abaixo.</Vazio>}
-        {c.veiculos.map((v) => (
-          <div className="item-linha" key={v.id}>
-            <div className="chips" style={{ alignItems: 'center' }}>
-              <Placa>{v.placa}</Placa>
-              <TipoVeiculo tipo={v.tipo} />
-              <span className="suave truncar">{[v.modelo, v.cor].filter(Boolean).join(' · ')}</span>
+        {c.veiculos.map((v) =>
+          editando === `v-${v.id}` ? (
+            <EditarVeiculo key={v.id} v={v} onSalvo={salvo} onCancelar={() => setEditando(null)} />
+          ) : (
+            <div className="item-linha" key={v.id}>
+              <div className="chips" style={{ alignItems: 'center' }}>
+                <Placa>{v.placa}</Placa>
+                <TipoVeiculo tipo={v.tipo} />
+                <span className="suave truncar">{[v.modelo, v.cor].filter(Boolean).join(' · ')}</span>
+              </div>
+              <div className="card-acoes">
+                <button
+                  type="button"
+                  className="btn btn-pequeno"
+                  aria-label={`Editar veículo ${v.placa}`}
+                  onClick={() => setEditando(`v-${v.id}`)}
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-pequeno btn-perigo"
+                  aria-label={`Remover veículo ${v.placa}`}
+                  onClick={async () => {
+                    const ok = await confirmar({
+                      titulo: `Remover o veículo ${v.placa}?`,
+                      texto: 'O histórico de sessões do veículo continua disponível nos relatórios.',
+                      acao: 'Remover veículo',
+                    });
+                    if (ok) depois(() => api.removerVeiculo(v.id));
+                  }}
+                >
+                  Remover
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              className="btn btn-pequeno btn-perigo"
-              aria-label={`Remover veículo ${v.placa}`}
-              onClick={async () => {
-                const ok = await confirmar({
-                  titulo: `Remover o veículo ${v.placa}?`,
-                  texto: 'O histórico de sessões do veículo continua disponível nos relatórios.',
-                  acao: 'Remover veículo',
-                });
-                if (ok) depois(() => api.removerVeiculo(v.id));
-              }}
-            >
-              Remover
-            </button>
-          </div>
-        ))}
+          ),
+        )}
         <form
           className="linha"
           style={{ marginTop: 14 }}
@@ -197,7 +457,13 @@ function DetalheCliente({ id, garagens, onAlterado, onRemovido }) {
             <InputPlaca valor={veiculo.placa} onChange={(v) => setVeiculo({ ...veiculo, placa: v })} />
           </Campo>
           <Campo label="Modelo">
-            <input name="modelo" value={veiculo.modelo} onChange={(e) => setVeiculo({ ...veiculo, modelo: e.target.value })} autoComplete="off" placeholder="ex.: Onix…" />
+            <input
+              name="modelo"
+              value={veiculo.modelo}
+              onChange={(e) => setVeiculo({ ...veiculo, modelo: e.target.value })}
+              autoComplete="off"
+              placeholder="ex.: Onix…"
+            />
           </Campo>
           <Campo label="Tipo">
             <select name="tipo" value={veiculo.tipo} onChange={(e) => setVeiculo({ ...veiculo, tipo: e.target.value })}>
@@ -218,47 +484,84 @@ function DetalheCliente({ id, garagens, onAlterado, onRemovido }) {
 
       <Card titulo="Planos de mensalista" id="planos">
         {c.planos.length === 0 && <Vazio titulo="Nenhum plano">O cliente é avulso e paga por permanência.</Vazio>}
-        {c.planos.map((p) => (
-          <div className="item-linha" key={p.id}>
-            <div>
-              <strong>{nomeGaragem(p.garagem_id)}</strong>{' '}
-              {p.vigente ? <Badge cor="verde">Vigente</Badge> : <Badge>Encerrado</Badge>}
-              <div className="suave" style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
-                {brl(p.valor_mensal)}/mês · desde {dia(p.data_inicio)}
-                {p.data_fim && ` até ${dia(p.data_fim)}`}
+        {c.planos.map((p) =>
+          editando === `p-${p.id}` ? (
+            <EditarValorPlano key={p.id} p={p} onSalvo={salvo} onCancelar={() => setEditando(null)} />
+          ) : (
+            <div className="item-linha" key={p.id}>
+              <div>
+                <strong>{nomeGaragem(p.garagem_id)}</strong>{' '}
+                {p.vigente ? <Badge cor="verde">Vigente</Badge> : <Badge>Encerrado</Badge>}
+                <div className="suave" style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
+                  {brl(p.valor_mensal)}/mês · desde {dia(p.data_inicio)}
+                  {p.data_fim && ` até ${dia(p.data_fim)}`}
+                </div>
+              </div>
+              <div className="card-acoes">
+                {p.ativo && (
+                  <button type="button" className="btn btn-pequeno" onClick={() => setEditando(`p-${p.id}`)}>
+                    Alterar valor
+                  </button>
+                )}
+                {!p.ativo && (
+                  <button
+                    type="button"
+                    className="btn btn-pequeno btn-perigo"
+                    aria-label={`Excluir plano encerrado de ${nomeGaragem(p.garagem_id)}`}
+                    onClick={async () => {
+                      const ok = await confirmar({
+                        titulo: 'Excluir este plano encerrado?',
+                        texto: 'O registro sai do histórico do cliente. Essa ação não pode ser desfeita.',
+                        acao: 'Excluir plano',
+                      });
+                      if (ok) depois(() => api.removerPlano(p.id));
+                    }}
+                  >
+                    Excluir
+                  </button>
+                )}
+                {p.ativo && (
+                  <button
+                    type="button"
+                    className="btn btn-pequeno"
+                    onClick={async () => {
+                      const ok = await confirmar({
+                        titulo: 'Encerrar este plano?',
+                        texto: `O cliente deixa de ser mensalista em ${nomeGaragem(p.garagem_id)} e passa a pagar por permanência a partir de hoje.`,
+                        acao: 'Encerrar plano',
+                      });
+                      if (ok) depois(() => api.encerrarPlano(p.id));
+                    }}
+                  >
+                    Encerrar plano
+                  </button>
+                )}
               </div>
             </div>
-            {p.ativo && (
-              <button
-                type="button"
-                className="btn btn-pequeno"
-                onClick={async () => {
-                  const ok = await confirmar({
-                    titulo: 'Encerrar este plano?',
-                    texto: `O cliente deixa de ser mensalista em ${nomeGaragem(p.garagem_id)} e passa a pagar por permanência a partir de hoje.`,
-                    acao: 'Encerrar plano',
-                  });
-                  if (ok) depois(() => api.encerrarPlano(p.id));
-                }}
-              >
-                Encerrar plano
-              </button>
-            )}
-          </div>
-        ))}
+          ),
+        )}
         <form
           className="linha"
           style={{ marginTop: 14 }}
           onSubmit={async (e) => {
             e.preventDefault();
             const r = await depois(() =>
-              api.criarPlano({ cliente_id: c.id, garagem_id: plano.garagem_id, valor_mensal: Number(plano.valor_mensal) })
+              api.criarPlano({
+                cliente_id: c.id,
+                garagem_id: plano.garagem_id,
+                valor_mensal: Number(plano.valor_mensal),
+              }),
             );
             if (r) setPlano({ garagem_id: '', valor_mensal: '' });
           }}
         >
           <Campo label="Garagem">
-            <SelectGaragem garagens={garagens} valor={plano.garagem_id} onChange={(v) => setPlano({ ...plano, garagem_id: v })} vazio="Selecione a garagem…" />
+            <SelectGaragem
+              garagens={garagens}
+              valor={plano.garagem_id}
+              onChange={(v) => setPlano({ ...plano, garagem_id: v })}
+              vazio="Selecione a garagem…"
+            />
           </Campo>
           <Campo label="Valor mensal (R$)">
             <input
@@ -334,7 +637,9 @@ export default function Clientes({ garagens }) {
           <Alerta>{lista.erro}</Alerta>
           {lista.carregando && !lista.dados && <Carregando texto="Carregando clientes…" />}
           {lista.dados?.length === 0 && (
-            <Vazio titulo="Nenhum cliente encontrado">{q ? 'Tente outro nome ou CPF.' : 'Cadastre o primeiro cliente.'}</Vazio>
+            <Vazio titulo="Nenhum cliente encontrado">
+              {q ? 'Tente outro nome ou CPF.' : 'Cadastre o primeiro cliente.'}
+            </Vazio>
           )}
           {lista.dados?.length > 0 && (
             <ul className="lista-clientes">
@@ -347,7 +652,9 @@ export default function Clientes({ garagens }) {
                         {fmtCpf(c.cpf)} · {c.qtd_veiculos} veículo(s)
                       </small>
                     </div>
-                    <Badge cor={c.tipo === 'MENSALISTA' ? 'azul' : 'cinza'}>{c.tipo === 'MENSALISTA' ? 'Mensalista' : 'Avulso'}</Badge>
+                    <Badge cor={c.tipo === 'MENSALISTA' ? 'azul' : 'cinza'}>
+                      {c.tipo === 'MENSALISTA' ? 'Mensalista' : 'Avulso'}
+                    </Badge>
                   </a>
                 </li>
               ))}

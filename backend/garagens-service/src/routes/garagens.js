@@ -109,7 +109,7 @@ router.patch('/:id', async (req, res) => {
   const g = await garagens().findOneAndUpdate(
     { _id: toObjectId(req.params.id) },
     { $set: { ...set, atualizado_em: new Date() } },
-    { returnDocument: 'after' }
+    { returnDocument: 'after' },
   );
   if (!g) throw notFound('Garagem');
   res.json(comTotal(g));

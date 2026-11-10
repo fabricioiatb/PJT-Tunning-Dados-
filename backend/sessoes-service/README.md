@@ -18,7 +18,7 @@ npm run dev
 npm run seed -- 20000 30    # opcional: 20 mil sessões nos últimos 30 dias
 ```
 
-O keyspace, o tipo `tarifa` e as tabelas ([`db/schema.cql`](db/schema.cql)) são criados automaticamente na inicialização.
+O keyspace, o tipo `tarifa` e as tabelas ([`db/schema.cql`](db/schema.cql)) são criados automaticamente na inicialização. Com `SEED_SE_VAZIO=10000` (padrão no docker compose), o serviço gera 10 mil sessões de exemplo em segundo plano se o Cassandra estiver vazio.
 
 ## Modelagem orientada a consultas
 
@@ -96,6 +96,9 @@ Exemplo (Garagem Paulista, carro: tolerância de 15 min, R$ 18 a primeira hora, 
 | GET | `/garagens/:garagem_id/sessoes?inicio=&fim=&status=` | Sessões do período (padrão: últimas 24 h, máximo de 31 dias) + `resumo` (faturamento, ticket médio, permanência média) |
 | GET | `/garagens/:garagem_id/ocupacao` | Vagas ocupadas e livres por tipo + veículos estacionados |
 | GET | `/veiculos/:placa/sessoes?limite=20` | Histórico do veículo |
+| DELETE | `/sessoes/:sessao_id?garagem_id=&placa=&entrada=` | Exclui uma sessão. Se estiver aberta, cancela o check-in e libera a vaga |
+
+**Por que o DELETE pede `garagem_id`, `placa` e `entrada`?** No Cassandra não existe `DELETE ... WHERE sessao_id = ?`: é preciso a chave primária completa de cada tabela, ou seja, a partição `(garagem_id, dia)` (o dia vem da `entrada`) mais o clustering. Esses valores já vêm em todas as listagens da API. Se a sessão estiver aberta, a reserva da placa é removida com LWT (`IF sessao_id = ?`), e só então a vaga é liberada. Uma sessão fechada nunca toca nas tabelas de "abertas", porque a mesma placa pode estar estacionada de novo, em outra sessão.
 
 Datas em ISO 8601 (`2026-11-09T14:30:00Z`). Os buckets diários são em UTC.
 

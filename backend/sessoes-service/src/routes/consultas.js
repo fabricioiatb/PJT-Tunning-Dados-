@@ -77,9 +77,9 @@ router.get('/garagens/:garagem_id/sessoes', async (req, res) => {
       todasLinhas(
         `SELECT * FROM sessoes_por_garagem
           WHERE garagem_id = ? AND dia = ? AND entrada >= ? AND entrada <= ?`,
-        [garagemId, dia, inicio, fim]
-      )
-    )
+        [garagemId, dia, inicio, fim],
+      ),
+    ),
   );
   const ms = Number(process.hrtime.bigint() - t0) / 1e6;
 
@@ -121,7 +121,7 @@ router.get('/garagens/:garagem_id/ocupacao', async (req, res) => {
   const tipos = new Set([...(garagem?.vagas || []).map((v) => v.tipo), ...veiculos.map((v) => v.tipo_veiculo)]);
 
   const porTipo = [...tipos].map((tipo) => {
-    const total = garagem ? garagem.vagas.find((v) => v.tipo === tipo)?.total ?? 0 : null;
+    const total = garagem ? (garagem.vagas.find((v) => v.tipo === tipo)?.total ?? 0) : null;
     const ocupadas = veiculos.filter((v) => v.tipo_veiculo === tipo).length;
     return {
       tipo,

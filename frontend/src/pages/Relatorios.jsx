@@ -1,8 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, brl, dataHora, diaCurto, duracao, horaCurta, numero, pct } from '../api';
 import {
-  Alerta, Badge, BotaoEnviar, CabecalhoPagina, Campo, Card, Carregando, InputPlaca, Placa,
-  SelectGaragem, TipoVeiculo, Vazio, useCarregar,
+  Alerta,
+  Badge,
+  BotaoEnviar,
+  CabecalhoPagina,
+  Campo,
+  Card,
+  Carregando,
+  InputPlaca,
+  Placa,
+  SelectGaragem,
+  TipoVeiculo,
+  Vazio,
+  useAcao,
+  useCarregar,
+  useConfirmar,
 } from '../ui';
 import { lerHash, useParamUrl } from '../url';
 
@@ -60,7 +73,24 @@ function Grafico({ sessoes, porHora, inicio }) {
   );
 }
 
-function SessoesTabela({ sessoes, comGaragem, legenda }) {
+// Exclusão de uma sessão com confirmação (o "D" do CRUD de sessões).
+function useExcluirSessao(onExcluida) {
+  const [confirmar, dialogo] = useConfirmar();
+  const acao = useAcao();
+  const excluir = async (s) => {
+    const ok = await confirmar({
+      titulo: `Excluir a sessão de ${s.placa}?`,
+      texto: `Entrada em ${dataHora(s.entrada)}${s.status === 'FECHADA' ? `, valor ${brl(s.valor)}` : ' (ainda estacionado — a vaga será liberada)'}. O registro sai das tabelas do Cassandra e não pode ser recuperado.`,
+      acao: 'Excluir sessão',
+    });
+    if (!ok) return;
+    const r = await acao.executar(() => api.removerSessao(s));
+    if (r !== undefined) onExcluida();
+  };
+  return { excluir, dialogo, erro: acao.erro, limparErro: () => acao.setErro(null), ocupado: acao.ocupado };
+}
+
+function SessoesTabela({ sessoes, comGaragem, legenda, onExcluir, ocupado }) {
   return (
     <div className="tabela-wrap">
       <table>
@@ -72,14 +102,31 @@ function SessoesTabela({ sessoes, comGaragem, legenda }) {
             <th scope="col">Cliente</th>
             <th scope="col">Entrada</th>
             <th scope="col">Saída</th>
-            <th scope="col" className="num">Permanência</th>
-            <th scope="col" className="num">Valor</th>
+            <th scope="col" className="num">
+              Permanência
+            </th>
+            <th scope="col" className="num">
+              Valor
+            </th>
+            {onExcluir && (
+              <th scope="col">
+                <span className="sr-only">Ações</span>
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
           {sessoes.map((s) => (
             <tr key={s.sessao_id}>
-              <td>{comGaragem ? <span className="truncar" style={{ display: 'block' }}>{s.garagem_nome}</span> : <Placa>{s.placa}</Placa>}</td>
+              <td>
+                {comGaragem ? (
+                  <span className="truncar" style={{ display: 'block' }}>
+                    {s.garagem_nome}
+                  </span>
+                ) : (
+                  <Placa>{s.placa}</Placa>
+                )}
+              </td>
               <td>
                 <TipoVeiculo tipo={s.tipo_veiculo} />
               </td>
@@ -90,6 +137,19 @@ function SessoesTabela({ sessoes, comGaragem, legenda }) {
               <td>{s.status === 'ABERTA' ? <Badge cor="amarelo">Estacionado</Badge> : dataHora(s.saida)}</td>
               <td className="num">{duracao(s.minutos)}</td>
               <td className="num">{s.status === 'FECHADA' ? brl(s.valor) : '—'}</td>
+              {onExcluir && (
+                <td className="num">
+                  <button
+                    type="button"
+                    className="btn btn-pequeno btn-perigo"
+                    disabled={ocupado}
+                    onClick={() => onExcluir(s)}
+                    aria-label={`Excluir sessão de ${s.placa} com entrada em ${dataHora(s.entrada)}`}
+                  >
+                    Excluir
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -112,11 +172,12 @@ function SessoesGaragem({ garagens }) {
   useEffect(() => setMostrar(PAGINA), [garagemId, periodo, status]);
 
   const p = PERIODOS.find((x) => x.id === periodo) || PERIODOS[1];
-  const { dados, erro, carregando } = useCarregar(() => {
+  const { dados, erro, carregando, recarregar } = useCarregar(() => {
     if (!garagemId) return Promise.resolve(null);
     const inicio = new Date(Date.now() - p.ms).toISOString();
     return api.sessoesGaragem(garagemId, { inicio, status });
   }, [garagemId, periodo, status]);
+  const exclusao = useExcluirSessao(recarregar);
 
   const r = dados?.resumo;
 
@@ -125,7 +186,12 @@ function SessoesGaragem({ garagens }) {
       <Card titulo="Filtros" id="filtros">
         <div className="linha">
           <Campo label="Garagem">
-            <SelectGaragem garagens={garagens} valor={garagemId} onChange={(v) => setGaragemId(v, { replace: false })} apenasAtivas={false} />
+            <SelectGaragem
+              garagens={garagens}
+              valor={garagemId}
+              onChange={(v) => setGaragemId(v, { replace: false })}
+              apenasAtivas={false}
+            />
           </Campo>
           <div className="fixo campo">
             <span className="campo-label" id="rotulo-periodo">
@@ -154,9 +220,8 @@ function SessoesGaragem({ garagens }) {
             <Badge cor="azul">
               <span translate="no">Cassandra</span>
             </Badge>
-            {numero(dados.particoes_lidas)} partição(ões){' '}
-            <code translate="no">(garagem_id, dia)</code> lidas em paralelo ·{' '}
-            {dados.tempo_consulta_ms.toLocaleString(undefined, { maximumFractionDigits: 1 })}&nbsp;ms
+            {numero(dados.particoes_lidas)} partição(ões) <code translate="no">(garagem_id, dia)</code> lidas em
+            paralelo · {dados.tempo_consulta_ms.toLocaleString(undefined, { maximumFractionDigits: 1 })}&nbsp;ms
           </p>
         )}
       </Card>
@@ -207,7 +272,16 @@ function SessoesGaragem({ garagens }) {
               <Vazio titulo="Nenhuma sessão no período">Escolha um período maior ou outra garagem.</Vazio>
             ) : (
               <>
-                <SessoesTabela sessoes={dados.sessoes.slice(0, mostrar)} legenda="Sessões da garagem no período" />
+                {exclusao.dialogo}
+                <Alerta focar onFechar={exclusao.limparErro}>
+                  {exclusao.erro}
+                </Alerta>
+                <SessoesTabela
+                  sessoes={dados.sessoes.slice(0, mostrar)}
+                  legenda="Sessões da garagem no período"
+                  onExcluir={exclusao.excluir}
+                  ocupado={exclusao.ocupado}
+                />
                 {mostrar < dados.sessoes.length && (
                   <div style={{ textAlign: 'center', marginTop: 14 }}>
                     <button type="button" className="btn" onClick={() => setMostrar((m) => m + PAGINA)}>
@@ -227,10 +301,11 @@ function SessoesGaragem({ garagens }) {
 function HistoricoVeiculo() {
   const [placaUrl, setPlacaUrl] = useParamUrl('placa');
   const [placa, setPlaca] = useState(placaUrl);
-  const { dados, erro, carregando } = useCarregar(
+  const { dados, erro, carregando, recarregar } = useCarregar(
     () => (placaUrl ? api.historicoVeiculo(placaUrl) : Promise.resolve(null)),
-    [placaUrl]
+    [placaUrl],
   );
+  const exclusao = useExcluirSessao(recarregar);
 
   return (
     <Card titulo="Histórico de um veículo" id="historico">
@@ -254,14 +329,26 @@ function HistoricoVeiculo() {
       <Alerta>{erro}</Alerta>
       {dados &&
         (dados.sessoes.length === 0 ? (
-          <Vazio titulo={`Nenhuma sessão para ${dados.placa}`}>Confira a placa ou registre uma entrada na Operação.</Vazio>
+          <Vazio titulo={`Nenhuma sessão para ${dados.placa}`}>
+            Confira a placa ou registre uma entrada na Operação.
+          </Vazio>
         ) : (
           <>
             <p className="nota" style={{ marginBottom: 12 }}>
               {numero(dados.resumo.total)} sessão(ões) · total pago {brl(dados.resumo.faturamento)} · leitura de uma
               única partição (<code translate="no">placa</code>) já ordenada por entrada.
             </p>
-            <SessoesTabela sessoes={dados.sessoes} comGaragem legenda={`Histórico do veículo ${dados.placa}`} />
+            {exclusao.dialogo}
+            <Alerta focar onFechar={exclusao.limparErro}>
+              {exclusao.erro}
+            </Alerta>
+            <SessoesTabela
+              sessoes={dados.sessoes}
+              comGaragem
+              legenda={`Histórico do veículo ${dados.placa}`}
+              onExcluir={exclusao.excluir}
+              ocupado={exclusao.ocupado}
+            />
           </>
         ))}
     </Card>

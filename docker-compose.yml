@@ -1,29 +1,45 @@
+# Projeto completo: 3 bancos + 3 serviços de backend + frontend.
+#
+#   docker compose up -d --build      ->  http://localhost:5173
+#
+# Num ambiente novo, cada serviço cria o próprio schema e popula o banco com
+# dados de exemplo (SEED_SE_VAZIO). O Cassandra leva ~1–2 min na 1ª subida.
+
 services:
+  # ---------------------------------------------------------------- bancos
   postgres:
     image: postgres:16-alpine
-    container_name: garagem-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: garagem
       POSTGRES_PASSWORD: garagem
       POSTGRES_DB: garagem_clientes
+      TZ: America/Sao_Paulo
     ports:
-      - "5433:5432"   # 5433 no host p/ não conflitar com um Postgres instalado localmente
+      - "5433:5432" # 5433 no host p/ não conflitar com um Postgres instalado localmente
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U garagem -d garagem_clientes"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   mongo:
     image: mongo:7
-    container_name: garagem-mongo
     restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   cassandra:
     image: cassandra:4.1
-    container_name: garagem-cassandra
     restart: unless-stopped
     environment:
       CASSANDRA_CLUSTER_NAME: garagem-cluster
@@ -34,14 +50,72 @@ services:
       - "9042:9042"
     volumes:
       - cassandra_data:/var/lib/cassandra
-    # O Cassandra leva ~1 min para aceitar conexões; "docker compose ps"
-    # mostra "healthy" quando o CQL já responde.
+    # "healthy" quando o CQL já responde (~1 min).
     healthcheck:
       test: ["CMD-SHELL", "cqlsh -e 'DESCRIBE KEYSPACES' > /dev/null 2>&1"]
-      interval: 15s
+      interval: 10s
       timeout: 10s
-      retries: 10
+      retries: 30
       start_period: 40s
+
+  # ------------------------------------------------------- backend (3 serviços)
+  # Dentro da rede do compose cada serviço acessa os outros pelo nome
+  # (postgres, mongo, cassandra, garagens...), não por localhost.
+  clientes:
+    build: ./backend/clientes-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://garagem:garagem@postgres:5432/garagem_clientes
+      GARAGENS_SERVICE_URL: http://garagens:3002
+      SEED_SE_VAZIO: "true"
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  garagens:
+    build: ./backend/garagens-service
+    restart: unless-stopped
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/garagem_garagens
+      SEED_SE_VAZIO: "true"
+    ports:
+      - "3002:3002"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  sessoes:
+    build: ./backend/sessoes-service
+    restart: unless-stopped
+    environment:
+      CASSANDRA_CONTACT_POINTS: cassandra
+      CASSANDRA_LOCAL_DATA_CENTER: datacenter1
+      CASSANDRA_KEYSPACE: garagem_sessoes
+      CLIENTES_SERVICE_URL: http://clientes:3001
+      GARAGENS_SERVICE_URL: http://garagens:3002
+      SEED_SE_VAZIO: "10000" # sessões de exemplo nos últimos 30 dias
+    ports:
+      - "3003:3003"
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      clientes:
+        condition: service_started
+      garagens:
+        condition: service_started
+
+  # ---------------------------------------------------------------- frontend
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - clientes
+      - garagens
+      - sessoes
 
 volumes:
   postgres_data:

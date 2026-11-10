@@ -1,7 +1,13 @@
 // Cliente HTTP dos três serviços. O frontend nunca acessa banco: só as APIs.
 const SERVICOS = {
-  clientes: { url: import.meta.env.VITE_CLIENTES_API_URL || 'http://localhost:3001', pasta: 'backend/clientes-service' },
-  garagens: { url: import.meta.env.VITE_GARAGENS_API_URL || 'http://localhost:3002', pasta: 'backend/garagens-service' },
+  clientes: {
+    url: import.meta.env.VITE_CLIENTES_API_URL || 'http://localhost:3001',
+    pasta: 'backend/clientes-service',
+  },
+  garagens: {
+    url: import.meta.env.VITE_GARAGENS_API_URL || 'http://localhost:3002',
+    pasta: 'backend/garagens-service',
+  },
   sessoes: { url: import.meta.env.VITE_SESSOES_API_URL || 'http://localhost:3003', pasta: 'backend/sessoes-service' },
 };
 
@@ -28,7 +34,7 @@ async function req(servico, path, { method = 'GET', body } = {}) {
     // Mensagem com o próximo passo, não só o problema.
     throw new ApiError(
       `Serviço de ${NOME_SERVICO[servico]} fora do ar. Inicie-o com “npm run dev” em ${pasta} e tente de novo.`,
-      0
+      0,
     );
   }
   if (resp.status === 204) return null;
@@ -53,15 +59,20 @@ export const api = {
   clientes: (busca) => req('clientes', `/clientes${qs({ busca })}`),
   cliente: (id) => req('clientes', `/clientes/${id}`),
   criarCliente: (body) => req('clientes', '/clientes', { method: 'POST', body }),
+  atualizarCliente: (id, body) => req('clientes', `/clientes/${id}`, { method: 'PUT', body }),
   removerCliente: (id) => req('clientes', `/clientes/${id}`, { method: 'DELETE' }),
   criarVeiculo: (body) => req('clientes', '/veiculos', { method: 'POST', body }),
+  atualizarVeiculo: (id, body) => req('clientes', `/veiculos/${id}`, { method: 'PUT', body }),
   removerVeiculo: (id) => req('clientes', `/veiculos/${id}`, { method: 'DELETE' }),
   criarPlano: (body) => req('clientes', '/planos', { method: 'POST', body }),
+  atualizarPlano: (id, body) => req('clientes', `/planos/${id}`, { method: 'PUT', body }),
   encerrarPlano: (id) => req('clientes', `/planos/${id}/encerrar`, { method: 'PATCH' }),
+  removerPlano: (id) => req('clientes', `/planos/${id}`, { method: 'DELETE' }),
 
   // Garagens (MongoDB)
   garagens: (filtros = {}) => req('garagens', `/garagens${qs(filtros)}`),
   criarGaragem: (body) => req('garagens', '/garagens', { method: 'POST', body }),
+  substituirGaragem: (id, body) => req('garagens', `/garagens/${id}`, { method: 'PUT', body }),
   atualizarGaragem: (id, body) => req('garagens', `/garagens/${id}`, { method: 'PATCH', body }),
   removerGaragem: (id) => req('garagens', `/garagens/${id}`, { method: 'DELETE' }),
 
@@ -69,6 +80,15 @@ export const api = {
   checkin: (body) => req('sessoes', '/sessoes/checkin', { method: 'POST', body }),
   checkout: (body) => req('sessoes', '/sessoes/checkout', { method: 'POST', body }),
   sessaoAberta: (placa) => req('sessoes', `/sessoes/abertas/${encodeURIComponent(placa)}`),
+  // A chave completa no Cassandra: partição (garagem_id, dia de entrada) + clustering.
+  removerSessao: (s, garagemId) =>
+    req(
+      'sessoes',
+      `/sessoes/${s.sessao_id}${qs({ garagem_id: garagemId || s.garagem_id, placa: s.placa, entrada: new Date(s.entrada).toISOString() })}`,
+      {
+        method: 'DELETE',
+      },
+    ),
   ocupacao: (garagemId) => req('sessoes', `/garagens/${garagemId}/ocupacao`),
   sessoesGaragem: (garagemId, filtros = {}) => req('sessoes', `/garagens/${garagemId}/sessoes${qs(filtros)}`),
   historicoVeiculo: (placa, limite = 50) =>
@@ -81,7 +101,12 @@ export const LOCALE = (typeof navigator !== 'undefined' && navigator.languages?.
 const fmtMoeda = new Intl.NumberFormat(LOCALE, { style: 'currency', currency: 'BRL' });
 const fmtNumero = new Intl.NumberFormat(LOCALE);
 const fmtPct = new Intl.NumberFormat(LOCALE, { style: 'percent', maximumFractionDigits: 1 });
-const fmtDataHora = new Intl.DateTimeFormat(LOCALE, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const fmtDataHora = new Intl.DateTimeFormat(LOCALE, {
+  day: '2-digit',
+  month: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+});
 // Datas "puras" (YYYY-MM-DD) vêm sem fuso: formatar em UTC evita voltar um dia.
 const fmtDia = new Intl.DateTimeFormat(LOCALE, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
 const fmtDiaCurto = new Intl.DateTimeFormat(LOCALE, { day: '2-digit', month: '2-digit' });
