@@ -1,19 +1,28 @@
 import { useEffect, useState } from 'react';
-import { api, brl, dataHora, duracao, TIPOS, NOME_TIPO } from '../api';
-import { Alerta, Badge, Campo, Card, Carregando, SelectGaragem, TipoVeiculo, Vazio, useAcao, useCarregar } from '../ui';
+import { api, brl, dataHora, duracao, pct, TIPOS, NOME_TIPO } from '../api';
+import {
+  Alerta, Badge, BotaoEnviar, CabecalhoPagina, Campo, Card, Carregando, InputPlaca, Placa,
+  SelectGaragem, TipoVeiculo, Vazio, useAcao, useCarregar,
+} from '../ui';
+import { useParamUrl } from '../url';
 
 const REGRA = {
   MENSALISTA: 'Mensalista — sem cobrança',
   TOLERANCIA: 'Dentro da tolerância',
   POR_HORA: 'Cobrança por hora',
-  DIARIA: 'Limitado pela diária',
+  DIARIA: 'Limitado pela diária máxima',
 };
+
+const descreverTarifa = (t) =>
+  `${brl(t.primeira_hora)} a 1ª hora · ${brl(t.hora_adicional)} por hora adicional` +
+  (t.diaria_maxima != null ? ` · diária máx. ${brl(t.diaria_maxima)}` : '') +
+  ` · tolerância de ${t.tolerancia_minutos} min`;
 
 function Recibo({ r }) {
   return (
-    <div className="recibo">
+    <div className="recibo" role="status" aria-live="polite">
       <div className="entre">
-        <span className="placa">{r.placa}</span>
+        <Placa>{r.placa}</Placa>
         <Badge cor={r.mensalista ? 'azul' : 'cinza'}>{r.mensalista ? 'Mensalista' : 'Avulso'}</Badge>
       </div>
       <div className="recibo-valor">{brl(r.valor)}</div>
@@ -30,16 +39,14 @@ function Recibo({ r }) {
         {r.tarifa && (
           <>
             <dt>Tarifa</dt>
-            <dd>
-              {brl(r.tarifa.primeira_hora)} 1ª hora · {brl(r.tarifa.hora_adicional)}/h adicional
-              {r.tarifa.diaria_maxima != null && ` · diária ${brl(r.tarifa.diaria_maxima)}`} · tolerância{' '}
-              {r.tarifa.tolerancia_minutos} min
-            </dd>
+            <dd>{descreverTarifa(r.tarifa)}</dd>
           </>
         )}
       </dl>
       {r.mensalista_fonte === 'CHECKIN' && (
-        <Alerta tipo="aviso">Serviço de Clientes fora do ar: usado o tipo registrado na entrada.</Alerta>
+        <Alerta tipo="aviso">
+          Serviço de Clientes fora do ar: foi usado o tipo de cliente registrado na entrada.
+        </Alerta>
       )}
     </div>
   );
@@ -52,6 +59,11 @@ function CheckIn({ garagemId, garagem, onFeito }) {
   const { ocupado, erro, setErro, executar } = useAcao();
 
   const tiposAceitos = (garagem?.vagas || []).map((v) => v.tipo);
+  const opcoes = TIPOS.filter((t) => !tiposAceitos.length || tiposAceitos.includes(t));
+
+  useEffect(() => {
+    if (!opcoes.includes(tipo)) setTipo(opcoes[0] || 'CARRO');
+  }, [opcoes, tipo]);
 
   const enviar = async (e) => {
     e.preventDefault();
@@ -65,22 +77,15 @@ function CheckIn({ garagemId, garagem, onFeito }) {
   };
 
   return (
-    <Card titulo="Entrada (check-in)">
+    <Card titulo="Registrar entrada" id="checkin">
       <form onSubmit={enviar}>
         <div className="linha">
           <Campo label="Placa">
-            <input
-              className="input-placa"
-              value={placa}
-              onChange={(e) => setPlaca(e.target.value.toUpperCase())}
-              placeholder="ABC1D23"
-              maxLength={8}
-              required
-            />
+            <InputPlaca valor={placa} onChange={setPlaca} name="placa-entrada" />
           </Campo>
-          <Campo label="Tipo" dica="Se cadastrado, vale o do cadastro">
-            <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
-              {TIPOS.filter((t) => !tiposAceitos.length || tiposAceitos.includes(t)).map((t) => (
+          <Campo label="Tipo de veículo">
+            <select name="tipo" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+              {opcoes.map((t) => (
                 <option key={t} value={t}>
                   {NOME_TIPO[t]}
                 </option>
@@ -88,21 +93,27 @@ function CheckIn({ garagemId, garagem, onFeito }) {
             </select>
           </Campo>
         </div>
-        <Alerta onFechar={() => setErro(null)}>{erro}</Alerta>
-        <button className="btn btn-verde btn-bloco" disabled={ocupado || !garagemId}>
-          {ocupado ? 'Registrando…' : 'Registrar entrada'}
-        </button>
+        <p className="nota" style={{ margin: '-4px 0 14px' }}>
+          Se o veículo for cadastrado, vale o tipo do cadastro e o cliente é reconhecido como mensalista ou avulso.
+        </p>
+        <Alerta focar onFechar={() => setErro(null)}>
+          {erro}
+        </Alerta>
+        <BotaoEnviar ocupado={ocupado} className="btn-verde btn-bloco" textoOcupado="Registrando entrada…">
+          Registrar entrada
+        </BotaoEnviar>
       </form>
+
       {resultado && (
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 14 }}>
           <Alerta tipo="ok" onFechar={() => setResultado(null)}>
-            <span className="placa">{resultado.placa}</span> entrou às {dataHora(resultado.entrada)} ·{' '}
+            <Placa>{resultado.placa}</Placa> entrou às {dataHora(resultado.entrada)} ·{' '}
             {resultado.mensalista
-              ? 'Mensalista (sem cobrança)'
+              ? 'mensalista (sem cobrança)'
               : resultado.veiculo_cadastrado
-                ? 'Cliente avulso cadastrado'
-                : 'Avulso (não cadastrado)'}{' '}
-            · {NOME_TIPO[resultado.tipo_veiculo]}: {resultado.vagas.ocupadas}/{resultado.vagas.total} vagas
+                ? 'cliente avulso cadastrado'
+                : 'avulso não cadastrado'}{' '}
+            · {NOME_TIPO[resultado.tipo_veiculo]}: {resultado.vagas.ocupadas}/{resultado.vagas.total} vagas ocupadas.
           </Alerta>
           {resultado.avisos?.map((a) => (
             <Alerta key={a} tipo="aviso">
@@ -115,18 +126,13 @@ function CheckIn({ garagemId, garagem, onFeito }) {
   );
 }
 
-function CheckOut({ placaInicial, onFeito }) {
+function CheckOut({ pedido, onFeito }) {
   const [placa, setPlaca] = useState('');
   const [previa, setPrevia] = useState(null);
   const [recibo, setRecibo] = useState(null);
   const { ocupado, erro, setErro, executar } = useAcao();
 
-  useEffect(() => {
-    if (placaInicial) consultar(placaInicial.placa);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [placaInicial]);
-
-  const consultar = async (p = placa) => {
+  const consultar = async (p) => {
     setPlaca(p);
     setRecibo(null);
     setPrevia(null);
@@ -134,7 +140,14 @@ function CheckOut({ placaInicial, onFeito }) {
     if (r) setPrevia(r);
   };
 
-  const finalizar = async () => {
+  // "Saída" clicada na tabela de ocupação
+  useEffect(() => {
+    if (pedido) consultar(pedido.placa);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pedido]);
+
+  const finalizar = async (e) => {
+    e.preventDefault();
     const r = await executar(() => api.checkout({ placa: previa.placa }));
     if (r) {
       setRecibo(r);
@@ -145,50 +158,45 @@ function CheckOut({ placaInicial, onFeito }) {
   };
 
   return (
-    <Card titulo="Saída (check-out)">
+    <Card titulo="Registrar saída" id="checkout">
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          consultar();
+          consultar(placa);
         }}
       >
         <div className="linha">
           <Campo label="Placa">
-            <input
-              className="input-placa"
-              value={placa}
-              onChange={(e) => setPlaca(e.target.value.toUpperCase())}
-              placeholder="ABC1D23"
-              maxLength={8}
-              required
-            />
+            <InputPlaca valor={placa} onChange={setPlaca} name="placa-saida" />
           </Campo>
-          <div className="fixo" style={{ marginBottom: 12 }}>
-            <button className="btn" disabled={ocupado}>
-              Consultar
-            </button>
+          <div className="fixo" style={{ marginBottom: 14 }}>
+            <BotaoEnviar ocupado={ocupado && !previa} className="" textoOcupado="Consultando…">
+              Consultar sessão
+            </BotaoEnviar>
           </div>
         </div>
       </form>
-      <Alerta onFechar={() => setErro(null)}>{erro}</Alerta>
+      <Alerta focar onFechar={() => setErro(null)}>
+        {erro}
+      </Alerta>
 
       {previa && (
-        <div className="recibo">
+        <form className="recibo" onSubmit={finalizar}>
           <div className="entre">
-            <span className="placa">{previa.placa}</span>
+            <Placa>{previa.placa}</Placa>
             <Badge cor={previa.mensalista ? 'azul' : 'cinza'}>{previa.mensalista ? 'Mensalista' : 'Avulso'}</Badge>
           </div>
-          <p className="suave" style={{ margin: '8px 0 0' }}>
+          <p className="suave" style={{ margin: '10px 0 0' }}>
             {previa.garagem_nome} · entrou {dataHora(previa.entrada)} · há {duracao(previa.minutos_ate_agora)}
           </p>
           <div className="recibo-valor">{brl(previa.valor_se_sair_agora)}</div>
-          <p className="suave" style={{ margin: '0 0 12px' }}>
+          <p className="suave" style={{ margin: '0 0 14px' }}>
             Valor se sair agora
           </p>
-          <button className="btn btn-primaria btn-bloco" onClick={finalizar} disabled={ocupado}>
-            {ocupado ? 'Finalizando…' : 'Confirmar saída'}
-          </button>
-        </div>
+          <BotaoEnviar ocupado={ocupado} className="btn-primaria btn-bloco" textoOcupado="Registrando saída…">
+            Confirmar saída e cobrar {brl(previa.valor_se_sair_agora)}
+          </BotaoEnviar>
+        </form>
       )}
       {recibo && <Recibo r={recibo} />}
     </Card>
@@ -210,31 +218,40 @@ function Ocupacao({ garagemId, versao, onSaida }) {
 
   return (
     <Card
-      titulo={`Ocupação agora${dados?.garagem_nome ? ` — ${dados.garagem_nome}` : ''}`}
+      id="ocupacao"
+      titulo={`Ocupação agora${dados?.garagem_nome ? ` · ${dados.garagem_nome}` : ''}`}
       acoes={
-        <button className="btn btn-pequeno" onClick={recarregar}>
-          Atualizar
+        <button type="button" className="btn btn-pequeno" onClick={recarregar} disabled={carregando}>
+          {carregando ? 'Atualizando…' : 'Atualizar ocupação'}
         </button>
       }
     >
       <Alerta>{erro}</Alerta>
       {dados?.aviso && <Alerta tipo="aviso">{dados.aviso}</Alerta>}
       {carregando && !dados ? (
-        <Carregando />
+        <Carregando texto="Carregando ocupação…" />
       ) : (
         dados && (
           <>
             <div className="ocupacao">
               {dados.por_tipo.map((t) => {
-                const pct = t.ocupacao_percentual ?? 0;
+                const fracao = t.total ? t.ocupadas / t.total : 0;
                 return (
                   <div className="ocup-item" key={t.tipo}>
                     <TipoVeiculo tipo={t.tipo} />
                     <div className="ocup-num">
                       {t.ocupadas} <small>/ {t.total ?? '?'} vagas</small>
                     </div>
-                    <div className={`barra ${pct >= 90 ? 'alta' : pct >= 60 ? 'media' : ''}`}>
-                      <i style={{ width: `${Math.min(pct, 100)}%` }} />
+                    <div
+                      className={`barra ${fracao >= 0.9 ? 'alta' : fracao >= 0.6 ? 'media' : ''}`}
+                      role="meter"
+                      aria-label={`Ocupação de vagas de ${NOME_TIPO[t.tipo]}`}
+                      aria-valuemin={0}
+                      aria-valuemax={t.total ?? 0}
+                      aria-valuenow={t.ocupadas}
+                      aria-valuetext={`${t.ocupadas} de ${t.total ?? '?'} vagas (${pct(fracao)})`}
+                    >
+                      <i style={{ transform: `scaleX(${Math.min(fracao, 1)})` }} />
                     </div>
                     <small className="suave">{t.livres ?? '?'} livres</small>
                   </div>
@@ -243,25 +260,28 @@ function Ocupacao({ garagemId, versao, onSaida }) {
             </div>
 
             {dados.veiculos.length === 0 ? (
-              <Vazio>Nenhum veículo estacionado.</Vazio>
+              <Vazio titulo="Nenhum veículo estacionado">Registre uma entrada para vê-la aqui.</Vazio>
             ) : (
               <div className="tabela-wrap">
                 <table>
+                  <caption className="sr-only">Veículos estacionados agora</caption>
                   <thead>
                     <tr>
-                      <th>Placa</th>
-                      <th>Tipo</th>
-                      <th>Cliente</th>
-                      <th>Entrada</th>
-                      <th>Tempo</th>
-                      <th />
+                      <th scope="col">Placa</th>
+                      <th scope="col">Tipo</th>
+                      <th scope="col">Cliente</th>
+                      <th scope="col">Entrada</th>
+                      <th scope="col" className="num">Tempo</th>
+                      <th scope="col">
+                        <span className="sr-only">Ações</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {dados.veiculos.map((v) => (
                       <tr key={v.placa}>
                         <td>
-                          <span className="placa">{v.placa}</span>
+                          <Placa>{v.placa}</Placa>
                         </td>
                         <td>
                           <TipoVeiculo tipo={v.tipo_veiculo} />
@@ -270,10 +290,15 @@ function Ocupacao({ garagemId, versao, onSaida }) {
                           <Badge cor={v.mensalista ? 'azul' : 'cinza'}>{v.mensalista ? 'Mensalista' : 'Avulso'}</Badge>
                         </td>
                         <td>{dataHora(v.entrada)}</td>
-                        <td>{duracao(Math.ceil((Date.now() - new Date(v.entrada)) / 60000))}</td>
+                        <td className="num">{duracao(Math.ceil((Date.now() - new Date(v.entrada)) / 60000))}</td>
                         <td className="num">
-                          <button className="btn btn-pequeno" onClick={() => onSaida(v.placa)}>
-                            Saída
+                          <button
+                            type="button"
+                            className="btn btn-pequeno"
+                            onClick={() => onSaida(v.placa)}
+                            aria-label={`Registrar saída de ${v.placa}`}
+                          >
+                            Registrar saída
                           </button>
                         </td>
                       </tr>
@@ -291,33 +316,44 @@ function Ocupacao({ garagemId, versao, onSaida }) {
 
 export default function Operacao({ garagens, erroGaragens }) {
   const ativas = garagens.filter((g) => g.ativa);
-  const [garagemId, setGaragemId] = useState(() => localStorage.getItem('garagemOperacao') || '');
+  const [garagemId, setGaragemId] = useParamUrl('garagem');
   const [versao, setVersao] = useState(0);
-  const [saida, setSaida] = useState(null);
+  const [pedidoSaida, setPedidoSaida] = useState(null);
 
-  // Garante uma garagem válida selecionada
+  // Sem garagem na URL (ou inválida): usa a primeira ativa.
   useEffect(() => {
     if (ativas.length && !ativas.some((g) => g._id === garagemId)) setGaragemId(ativas[0]._id);
-  }, [ativas, garagemId]);
-
-  useEffect(() => {
-    if (garagemId) localStorage.setItem('garagemOperacao', garagemId);
-  }, [garagemId]);
+  }, [ativas, garagemId, setGaragemId]);
 
   const garagem = garagens.find((g) => g._id === garagemId);
   const atualizar = () => setVersao((v) => v + 1);
 
   return (
-    <div className="grade grade-2">
-      <div className="pilha">
-        <Card titulo="Garagem">
-          <Alerta>{erroGaragens}</Alerta>
-          <SelectGaragem garagens={garagens} valor={garagemId} onChange={setGaragemId} />
-        </Card>
-        <CheckIn garagemId={garagemId} garagem={garagem} onFeito={atualizar} />
-        <CheckOut placaInicial={saida} onFeito={atualizar} />
+    <>
+      <CabecalhoPagina
+        titulo="Operação"
+        descricao="Entrada e saída de veículos. O valor é calculado no check-out com a tarifa vigente na entrada."
+      />
+      <div className="grade grade-2">
+        <div className="pilha">
+          <Card titulo="Garagem" id="garagem">
+            <Alerta>{erroGaragens}</Alerta>
+            <Campo label="Garagem em operação" className="sem-margem">
+              <SelectGaragem garagens={garagens} valor={garagemId} onChange={(v) => setGaragemId(v, { replace: false })} />
+            </Campo>
+          </Card>
+          <CheckIn garagemId={garagemId} garagem={garagem} onFeito={atualizar} />
+          <CheckOut pedido={pedidoSaida} onFeito={atualizar} />
+        </div>
+        <Ocupacao
+          garagemId={garagemId}
+          versao={versao}
+          onSaida={(placa) => {
+            setPedidoSaida({ placa, t: Date.now() });
+            document.getElementById('checkout-titulo')?.scrollIntoView({ block: 'start' });
+          }}
+        />
       </div>
-      <Ocupacao garagemId={garagemId} versao={versao} onSaida={(placa) => setSaida({ placa, t: Date.now() })} />
-    </div>
+    </>
   );
 }

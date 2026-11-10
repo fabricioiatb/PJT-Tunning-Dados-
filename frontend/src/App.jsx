@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import { useCarregar } from './ui';
+import { lerHash, useHash } from './url';
 import Operacao from './pages/Operacao';
 import Clientes from './pages/Clientes';
 import Garagens from './pages/Garagens';
@@ -19,7 +20,7 @@ const SERVICOS = [
   { id: 'sessoes', banco: 'Cassandra' },
 ];
 
-// Indicador de saúde dos 3 serviços (consulta /health a cada 10s).
+// Saúde dos 3 serviços (GET /health a cada 10s).
 function StatusServicos() {
   const [status, setStatus] = useState({});
   useEffect(() => {
@@ -35,68 +36,75 @@ function StatusServicos() {
     return () => clearInterval(t);
   }, []);
 
+  const fora = SERVICOS.filter((s) => status[s.id] === false);
+
   return (
-    <div className="status-servicos">
-      {SERVICOS.map((s) => (
-        <span
-          key={s.id}
-          className={`status-pill ${status[s.id] === undefined ? '' : status[s.id] ? 'ok' : 'off'}`}
-          title={`Serviço de ${s.id} — ${status[s.id] === false ? 'fora do ar' : 'no ar'}`}
-        >
-          <i />
-          {s.banco}
-        </span>
-      ))}
+    <div className="status-servicos" role="status" aria-live="polite" aria-label="Status dos bancos de dados">
+      {SERVICOS.map((s) => {
+        const st = status[s.id] === undefined ? 'verificando' : status[s.id] ? 'no ar' : 'fora do ar';
+        return (
+          <span key={s.id} className={`status-pill ${status[s.id] === undefined ? '' : status[s.id] ? 'ok' : 'off'}`}>
+            <i aria-hidden="true" />
+            <span translate="no">{s.banco}</span>
+            <span className="sr-only">: {st}</span>
+          </span>
+        );
+      })}
+      {fora.length > 0 && <span className="sr-only">{fora.length} serviço(s) fora do ar</span>}
     </div>
   );
 }
 
-const abaInicial = () => {
-  const h = window.location.hash.slice(1);
-  return ABAS.some((a) => a.id === h) ? h : 'operacao';
-};
-
 export default function App() {
-  const [aba, setAba] = useState(abaInicial);
-  // Lista de garagens compartilhada por todas as telas (selects).
+  useHash(); // re-renderiza quando o endereço muda
+  const id = lerHash().aba;
+  const aba = ABAS.find((a) => a.id === id) || ABAS[0];
+  const mainRef = useRef(null);
+
+  // Lista de garagens compartilhada pelas telas (selects).
   const garagens = useCarregar(() => api.garagens(), []);
 
-  // A aba fica no endereço (#clientes...): dá para recarregar, compartilhar o
-  // link e usar o botão "voltar" do navegador.
   useEffect(() => {
-    const aoMudar = () => setAba(abaInicial());
-    window.addEventListener('hashchange', aoMudar);
-    return () => window.removeEventListener('hashchange', aoMudar);
-  }, []);
-
-  const trocar = (id) => {
-    window.location.hash = id;
-  };
-
-  const { Comp } = ABAS.find((a) => a.id === aba);
+    document.title = `${aba.nome} · Garagem Poliglota`;
+  }, [aba]);
 
   return (
     <div className="app">
+      <a
+        href="#conteudo"
+        className="pular"
+        onClick={(e) => {
+          e.preventDefault(); // não troca o hash (que guarda a aba)
+          mainRef.current?.focus();
+        }}
+      >
+        Pular para o conteúdo
+      </a>
+
       <header className="topo">
         <div className="marca">
-          <span className="logo">P</span>
+          <span className="logo" aria-hidden="true">
+            P
+          </span>
           <div>
             <strong>Garagem Poliglota</strong>
-            <small>Polyglot Persistence · CCD410</small>
+            <small>
+              Polyglot Persistence · <span translate="no">CCD410</span>
+            </small>
           </div>
         </div>
-        <nav className="abas">
+        <nav className="abas" aria-label="Seções">
           {ABAS.map((a) => (
-            <button key={a.id} className={a.id === aba ? 'ativa' : ''} onClick={() => trocar(a.id)}>
+            <a key={a.id} href={`#${a.id}`} aria-current={a.id === aba.id ? 'page' : undefined}>
               {a.nome}
-            </button>
+            </a>
           ))}
         </nav>
         <StatusServicos />
       </header>
 
-      <main className="conteudo">
-        <Comp garagens={garagens.dados || []} erroGaragens={garagens.erro} recarregarGaragens={garagens.recarregar} />
+      <main id="conteudo" ref={mainRef} tabIndex={-1} className="conteudo">
+        <aba.Comp garagens={garagens.dados || []} erroGaragens={garagens.erro} recarregarGaragens={garagens.recarregar} />
       </main>
     </div>
   );

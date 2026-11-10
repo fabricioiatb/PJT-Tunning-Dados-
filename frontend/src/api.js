@@ -1,9 +1,11 @@
 // Cliente HTTP dos três serviços. O frontend nunca acessa banco: só as APIs.
-const URLS = {
-  clientes: import.meta.env.VITE_CLIENTES_API_URL || 'http://localhost:3001',
-  garagens: import.meta.env.VITE_GARAGENS_API_URL || 'http://localhost:3002',
-  sessoes: import.meta.env.VITE_SESSOES_API_URL || 'http://localhost:3003',
+const SERVICOS = {
+  clientes: { url: import.meta.env.VITE_CLIENTES_API_URL || 'http://localhost:3001', pasta: 'backend/clientes-service' },
+  garagens: { url: import.meta.env.VITE_GARAGENS_API_URL || 'http://localhost:3002', pasta: 'backend/garagens-service' },
+  sessoes: { url: import.meta.env.VITE_SESSOES_API_URL || 'http://localhost:3003', pasta: 'backend/sessoes-service' },
 };
+
+const NOME_SERVICO = { clientes: 'Clientes', garagens: 'Garagens', sessoes: 'Sessões' };
 
 export class ApiError extends Error {
   constructor(message, status, corpo) {
@@ -14,15 +16,20 @@ export class ApiError extends Error {
 }
 
 async function req(servico, path, { method = 'GET', body } = {}) {
+  const { url, pasta } = SERVICOS[servico];
   let resp;
   try {
-    resp = await fetch(URLS[servico] + path, {
+    resp = await fetch(url + path, {
       method,
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
-    throw new ApiError(`Serviço de ${servico} fora do ar (${URLS[servico]})`, 0);
+    // Mensagem com o próximo passo, não só o problema.
+    throw new ApiError(
+      `Serviço de ${NOME_SERVICO[servico]} fora do ar. Inicie-o com “npm run dev” em ${pasta} e tente de novo.`,
+      0
+    );
   }
   if (resp.status === 204) return null;
   const corpo = await resp.json().catch(() => ({}));
@@ -46,7 +53,6 @@ export const api = {
   clientes: (busca) => req('clientes', `/clientes${qs({ busca })}`),
   cliente: (id) => req('clientes', `/clientes/${id}`),
   criarCliente: (body) => req('clientes', '/clientes', { method: 'POST', body }),
-  atualizarCliente: (id, body) => req('clientes', `/clientes/${id}`, { method: 'PUT', body }),
   removerCliente: (id) => req('clientes', `/clientes/${id}`, { method: 'DELETE' }),
   criarVeiculo: (body) => req('clientes', '/veiculos', { method: 'POST', body }),
   removerVeiculo: (id) => req('clientes', `/veiculos/${id}`, { method: 'DELETE' }),
@@ -55,7 +61,6 @@ export const api = {
 
   // Garagens (MongoDB)
   garagens: (filtros = {}) => req('garagens', `/garagens${qs(filtros)}`),
-  garagem: (id) => req('garagens', `/garagens/${id}`),
   criarGaragem: (body) => req('garagens', '/garagens', { method: 'POST', body }),
   atualizarGaragem: (id, body) => req('garagens', `/garagens/${id}`, { method: 'PATCH', body }),
   removerGaragem: (id) => req('garagens', `/garagens/${id}`, { method: 'DELETE' }),
@@ -70,10 +75,26 @@ export const api = {
     req('sessoes', `/veiculos/${encodeURIComponent(placa)}/sessoes${qs({ limite })}`),
 };
 
-// --- formatação ---
-export const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-export const dataHora = (d) =>
-  d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+// --- formatação com Intl (idioma do navegador; moeda sempre BRL) ---------
+export const LOCALE = (typeof navigator !== 'undefined' && navigator.languages?.[0]) || 'pt-BR';
+
+const fmtMoeda = new Intl.NumberFormat(LOCALE, { style: 'currency', currency: 'BRL' });
+const fmtNumero = new Intl.NumberFormat(LOCALE);
+const fmtPct = new Intl.NumberFormat(LOCALE, { style: 'percent', maximumFractionDigits: 1 });
+const fmtDataHora = new Intl.DateTimeFormat(LOCALE, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+// Datas "puras" (YYYY-MM-DD) vêm sem fuso: formatar em UTC evita voltar um dia.
+const fmtDia = new Intl.DateTimeFormat(LOCALE, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+const fmtDiaCurto = new Intl.DateTimeFormat(LOCALE, { day: '2-digit', month: '2-digit' });
+const fmtHora = new Intl.DateTimeFormat(LOCALE, { day: '2-digit', hour: '2-digit' });
+
+export const brl = (v) => fmtMoeda.format(v ?? 0);
+export const numero = (v) => fmtNumero.format(v ?? 0);
+export const pct = (v) => fmtPct.format(v ?? 0);
+export const dataHora = (d) => (d ? fmtDataHora.format(new Date(d)) : '—');
+export const dia = (d) => (d ? fmtDia.format(new Date(`${d}T00:00:00Z`)) : '—');
+export const diaCurto = (d) => fmtDiaCurto.format(new Date(d));
+export const horaCurta = (d) => fmtHora.format(new Date(d));
+
 export const duracao = (min) => {
   if (min == null) return '—';
   const h = Math.floor(min / 60);
@@ -81,5 +102,6 @@ export const duracao = (min) => {
   if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
   return h ? `${h}h ${String(m).padStart(2, '0')}min` : `${m}min`;
 };
+
 export const TIPOS = ['CARRO', 'MOTO', 'UTILITARIO'];
 export const NOME_TIPO = { CARRO: 'Carro', MOTO: 'Moto', UTILITARIO: 'Utilitário' };
